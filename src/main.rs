@@ -155,7 +155,7 @@ impl eframe::App for RoboarchiveApp {
         });
 
         if self.show_config {
-            egui::Window::new("Scanner Configuration").default_size([620.0, 500.0]).show(ctx, |ui| {
+            egui::Window::new("Scanner Configuration").default_size([640.0, 500.0]).show(ctx, |ui| {
                 egui::TopBottomPanel::bottom("close_panel")
                 .resizable(false)
                 .show_inside(ui, |ui| {
