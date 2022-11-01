@@ -126,7 +126,7 @@ impl eframe::App for RoboarchiveApp {
                     self.refresh_devices();
                 };
 
-                ui.add_enabled_ui(self.scanner_list.len() > 0, |ui| {
+                ui.add_enabled_ui(!self.scanner_list.is_empty(), |ui| {
                     // Scanner selection dropdown
                     if egui::ComboBox::from_label(" is the selected scanner.")
                         .show_index(ui, &mut self.selected_scanner, self.scanner_list.len(),
@@ -173,7 +173,7 @@ impl eframe::App for RoboarchiveApp {
                 egui::CentralPanel::default().show_inside(ui, |ui| {
                     egui::ScrollArea::both().show(ui, |ui| {
                         egui::Grid::new("device_config").striped(true).max_col_width(f32::INFINITY).show(ui, |ui| {
-                            for mut option in self.config_options.iter_mut() {
+                            for option in self.config_options.iter_mut() {
 
                                 if let ValueType::Group = option.base_option.type_ {
                                     // Group titles get a special label and no controls (column 1)
@@ -188,7 +188,7 @@ impl eframe::App for RoboarchiveApp {
                                 // Draw the option value controls (column 2)
                                 ui.add_enabled_ui(option.base_option.cap.contains(OptionCapability::SOFT_SELECT), |ui| {
                                     ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                                        render_device_option_controls(ui, &mut option);
+                                        render_device_option_controls(ui, option);
                                     }).response.on_disabled_hover_text("This option cannot be changed in software — look on the hardware device to adjust.");
                                 });
 
@@ -292,7 +292,7 @@ impl From<&DeviceOptionValue> for EditingDeviceOptionValue {
             DeviceOptionValue::Bool(val) => Self::Bool(*val),
             DeviceOptionValue::Int(val) => Self::Int(val.to_string()),
             DeviceOptionValue::Fixed(val) => Self::Fixed(FixedI32::from(*val).to_string()),
-            DeviceOptionValue::String(val) => Self::String(cstring_to_string(&val, "option value")),
+            DeviceOptionValue::String(val) => Self::String(cstring_to_string(val, "option value")),
             DeviceOptionValue::Button => Self::Button,
             DeviceOptionValue::Group => Self::Group,
         }
