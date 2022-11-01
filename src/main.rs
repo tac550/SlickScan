@@ -213,7 +213,20 @@ fn string_to_cstring(string: String) -> CString {
 fn render_device_option_controls(ui: &mut egui::Ui, option: &mut EditingDeviceOption) {
     match &mut option.editing_value {
         EditingDeviceOptionValue::Bool(val) => option_edited_if_changed(ui.checkbox(val, ""), option),
-        EditingDeviceOptionValue::Int(val) => option_edited_if_changed(ui.text_edit_singleline( val), option),
+        EditingDeviceOptionValue::Int(val) => {
+            match &option.base_option.constraint {
+                sane_scan::OptionConstraint::WordList(list) => {
+                    if egui::ComboBox::from_id_source(option.base_option.option_idx).selected_text(val.to_owned()).show_ui(ui, |ui| {
+                        for word in list {
+                            ui.selectable_value(val, word.to_string(), word.to_string());
+                        }
+                    }).response.clicked() {
+                        option.is_edited = true;
+                    }
+                },
+                _ => option_edited_if_changed(ui.text_edit_singleline( val), option),
+            }
+        },
         EditingDeviceOptionValue::Fixed(val) => option_edited_if_changed(ui.text_edit_singleline(val), option),
         EditingDeviceOptionValue::String(val) => {
             match &option.base_option.constraint {
@@ -228,7 +241,7 @@ fn render_device_option_controls(ui: &mut egui::Ui, option: &mut EditingDeviceOp
                     }
                 },
                 _ => option_edited_if_changed(ui.text_edit_singleline(val), option),
-            };
+            }
         },
         EditingDeviceOptionValue::Button => {
             if ui.button("Activate").clicked() {
@@ -237,7 +250,7 @@ fn render_device_option_controls(ui: &mut egui::Ui, option: &mut EditingDeviceOp
             return;
         },
         EditingDeviceOptionValue::Group => return,
-    };
+    }
 
     ui.add_enabled_ui(option.is_edited, |ui| {
         if ui.button("Reset").clicked() {
