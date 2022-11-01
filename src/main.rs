@@ -98,9 +98,15 @@ impl RoboarchiveApp {
             };
         
             for option in device_options {
-                let option_value = match handle.get_option(&option) {
-                    Ok(option) => option,
-                    Err(error) => DeviceOptionValue::String(string_to_cstring(error.to_string())),
+                let option_value = match option.type_ {
+                    ValueType::Button => DeviceOptionValue::Button,
+                    ValueType::Group => DeviceOptionValue::Group,
+                    _ => {
+                        match handle.get_option(&option) {
+                            Ok(opt) => opt,
+                            Err(error) => DeviceOptionValue::String(string_to_cstring("ERROR: ".to_owned() + &error.to_string())),
+                        }
+                    },
                 };
                 self.config_options.push(EditingDeviceOption::new(option, option_value));
 
@@ -168,20 +174,21 @@ impl eframe::App for RoboarchiveApp {
                     egui::ScrollArea::both().show(ui, |ui| {
                         egui::Grid::new("device_config").striped(true).max_col_width(f32::INFINITY).show(ui, |ui| {
                             for mut option in self.config_options.iter_mut() {
-                                if option.base_option.type_ == ValueType::Group {
-                                    // Group titles get a special label and no controls
+
+                                if let ValueType::Group = option.base_option.type_ {
+                                    // Group titles get a special label and no controls (column 1)
                                     ui.colored_label(Color32::LIGHT_BLUE,
                                         cstring_to_string(&option.base_option.title, "group title"));
                                 } else {
                                     // Draw the option item's label (column 1)
                                     ui.label(cstring_to_string(&option.base_option.title, "option title"))
-                                        .on_hover_text(cstring_to_string(&option.base_option.desc, "option description"));
-
-                                    // Draw the option value controls, if not a group item (column 2)
-                                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                                        render_device_option(ui, &mut option);
-                                    });
+                                    .on_hover_text(cstring_to_string(&option.base_option.desc, "option description"));
                                 }
+
+                                // Draw the option value controls (column 2)
+                                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                    render_device_option_controls(ui, &mut option);
+                                });
 
                                 ui.end_row();
                             }
@@ -201,16 +208,19 @@ fn string_to_cstring(string: String) -> CString {
     CString::new(string).unwrap_or_default()
 }
 
-fn render_device_option(ui: &mut egui::Ui, option: &mut EditingDeviceOption) {
+fn render_device_option_controls(ui: &mut egui::Ui, option: &mut EditingDeviceOption) {
     match &mut option.editing_value {
         EditingDeviceOptionValue::Bool(val) => option_edited_if_changed(ui.checkbox(val, ""), option),
         EditingDeviceOptionValue::Int(val) => option_edited_if_changed(ui.text_edit_singleline( val), option),
         EditingDeviceOptionValue::Fixed(val) => option_edited_if_changed(ui.text_edit_singleline(val), option),
         EditingDeviceOptionValue::String(val) => option_edited_if_changed(ui.text_edit_singleline(val), option),
-        EditingDeviceOptionValue::Button => if ui.button("Activate").clicked() {
-            println!("Button Option Activated (Need to implement)");
+        EditingDeviceOptionValue::Button => {
+            if ui.button("Activate").clicked() {
+                println!("Button Option Activated (Need to implement)");
+            }
+            return;
         },
-        EditingDeviceOptionValue::Group => println!("FOUND A GROUP"),
+        EditingDeviceOptionValue::Group => return,
     };
 
     ui.add_enabled_ui(option.is_edited, |ui| {
