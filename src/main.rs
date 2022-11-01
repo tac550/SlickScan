@@ -2,7 +2,7 @@ use std::ffi::CString;
 
 use eframe::{egui::{self, Response}, epaint::Color32};
 use fixed::{FixedI32, types::extra::U16};
-use sane_scan::{self, Sane, Device, DeviceHandle, DeviceOption, DeviceOptionValue, ValueType};
+use sane_scan::{self, Sane, Device, DeviceHandle, DeviceOption, DeviceOptionValue, ValueType, OptionCapability};
 
 fn main() {
     env_logger::init();
@@ -110,7 +110,7 @@ impl RoboarchiveApp {
                 };
                 self.config_options.push(EditingDeviceOption::new(option, option_value));
 
-                dbg!(self.config_options.last());
+                dbg!(&self.config_options.last().unwrap().base_option);
             }
         }
     }
@@ -186,8 +186,10 @@ impl eframe::App for RoboarchiveApp {
                                 }
 
                                 // Draw the option value controls (column 2)
-                                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                                    render_device_option_controls(ui, &mut option);
+                                ui.add_enabled_ui(option.base_option.cap.contains(OptionCapability::SOFT_SELECT), |ui| {
+                                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                        render_device_option_controls(ui, &mut option);
+                                    }).response.on_disabled_hover_text("Value cannot be changed in software.");
                                 });
 
                                 ui.end_row();
