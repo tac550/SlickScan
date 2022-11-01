@@ -189,7 +189,7 @@ impl eframe::App for RoboarchiveApp {
                                 ui.add_enabled_ui(option.base_option.cap.contains(OptionCapability::SOFT_SELECT), |ui| {
                                     ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                                         render_device_option_controls(ui, &mut option);
-                                    }).response.on_disabled_hover_text("Value cannot be changed in software.");
+                                    }).response.on_disabled_hover_text("This option cannot be changed in software — look on the hardware device to adjust.");
                                 });
 
                                 ui.end_row();
