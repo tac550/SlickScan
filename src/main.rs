@@ -155,7 +155,7 @@ impl eframe::App for RoboarchiveApp {
         });
 
         if self.show_config {
-            egui::Window::new("Scanner Configuration").default_size([640.0, 500.0]).show(ctx, |ui| {
+            egui::Window::new("Scanner Configuration").default_size([680.0, 500.0]).show(ctx, |ui| {
                 egui::TopBottomPanel::bottom("close_panel")
                 .resizable(false)
                 .show_inside(ui, |ui| {
@@ -211,6 +211,10 @@ fn string_to_cstring(string: String) -> CString {
 }
 
 fn render_device_option_controls(ui: &mut egui::Ui, option: &mut EditingDeviceOption) {
+    if option.base_option.cap.contains(OptionCapability::INACTIVE) {
+        ui.colored_label(Color32::DARK_RED, "(Inactive)").on_hover_text("This option is inactive. There may be another option that, once applied, causes this option to take effect.");
+    }
+
     match &mut option.editing_value {
         EditingDeviceOptionValue::Bool(val) => option_edited_if_changed(ui.checkbox(val, ""), option),
         EditingDeviceOptionValue::Int(val) => {
