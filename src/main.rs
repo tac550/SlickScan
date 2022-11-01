@@ -215,7 +215,21 @@ fn render_device_option_controls(ui: &mut egui::Ui, option: &mut EditingDeviceOp
         EditingDeviceOptionValue::Bool(val) => option_edited_if_changed(ui.checkbox(val, ""), option),
         EditingDeviceOptionValue::Int(val) => option_edited_if_changed(ui.text_edit_singleline( val), option),
         EditingDeviceOptionValue::Fixed(val) => option_edited_if_changed(ui.text_edit_singleline(val), option),
-        EditingDeviceOptionValue::String(val) => option_edited_if_changed(ui.text_edit_singleline(val), option),
+        EditingDeviceOptionValue::String(val) => {
+            match &option.base_option.constraint {
+                sane_scan::OptionConstraint::StringList(list) => {
+                    let string_list: Vec<String> = list.iter().map(|item| cstring_to_string(item, "option choice")).collect();
+                    if egui::ComboBox::from_id_source(option.base_option.option_idx).selected_text(val.to_owned()).show_ui(ui, |ui| {
+                        for string in string_list {
+                            ui.selectable_value(val, string.clone(), string);
+                        }
+                    }).response.clicked() {
+                        option.is_edited = true;
+                    }
+                },
+                _ => option_edited_if_changed(ui.text_edit_singleline(val), option),
+            };
+        },
         EditingDeviceOptionValue::Button => {
             if ui.button("Activate").clicked() {
                 println!("Button Option Activated (Need to implement)");
