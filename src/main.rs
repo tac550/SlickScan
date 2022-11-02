@@ -344,6 +344,10 @@ impl TryFrom<EditingDeviceOptionValue> for DeviceOptionValue {
 }
 
 fn sane_fixed_to_float(fixed: i32) -> f64 {
+    if fixed == std::i32::MIN {
+        return -32768.0;
+    }
+    
     let mut c = fixed.abs();
     let mut sign = 1;
 
@@ -357,6 +361,10 @@ fn sane_fixed_to_float(fixed: i32) -> f64 {
 }
 
 fn sane_float_to_fixed(fixed: f64) -> i32 {
+    if fixed == -32768.0 {
+        return i32::MIN;
+    }
+
     let a = fixed * 2i32.pow(16) as f64;
     let mut b = a.round() as i32;
 
