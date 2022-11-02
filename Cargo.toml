@@ -10,4 +10,3 @@ eframe = "0.19.0"
 sane-scan = "0.1.1"
 qoi = "0.4.1"
 env_logger = "0.9.1"
-fixed = { version = "1.19.0", features = ["std"] }
