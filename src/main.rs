@@ -1,7 +1,6 @@
 use std::ffi::CString;
 
 use eframe::{egui::{self, Response}, epaint::Color32};
-use fixed::{FixedI32, types::extra::U16};
 use sane_scan::{self, Sane, Device, DeviceHandle, DeviceOption, DeviceOptionValue, ValueType, OptionCapability};
 
 fn main() {
@@ -172,7 +171,7 @@ impl eframe::App for RoboarchiveApp {
 
                 egui::CentralPanel::default().show_inside(ui, |ui| {
                     egui::ScrollArea::both().show(ui, |ui| {
-                        egui::Grid::new("device_config").striped(true).max_col_width(f32::INFINITY).show(ui, |ui| {
+                        egui::Grid::new("device_config").striped(true).max_col_width(160.0).show(ui, |ui| {
                             for option in self.config_options.iter_mut() {
 
                                 if let ValueType::Group = option.base_option.type_ {
@@ -228,10 +227,23 @@ fn render_device_option_controls(ui: &mut egui::Ui, option: &mut EditingDeviceOp
                         option.is_edited = true;
                     }
                 },
+                sane_scan::OptionConstraint::Range { range, quant } => {
+                    ui.colored_label(Color32::GOLD, format!("(Range: {} – {}, step: {})", range.start, range.end, quant));
+                    option_edited_if_changed(ui.text_edit_singleline( val), option);
+                },
                 _ => option_edited_if_changed(ui.text_edit_singleline( val), option),
             }
         },
-        EditingDeviceOptionValue::Fixed(val) => option_edited_if_changed(ui.text_edit_singleline(val), option),
+        EditingDeviceOptionValue::Fixed(val) => {
+            match &option.base_option.constraint {
+                sane_scan::OptionConstraint::Range { range, quant } => {
+                    ui.colored_label(Color32::GOLD, format!("(Range: {} – {}, step: {})",
+                        sane_fixed_to_float(range.start), sane_fixed_to_float(range.end), sane_fixed_to_float(*quant)));
+                    option_edited_if_changed(ui.text_edit_singleline(val), option);
+                },
+                _ => option_edited_if_changed(ui.text_edit_singleline(val), option),
+            }
+        },
         EditingDeviceOptionValue::String(val) => {
             match &option.base_option.constraint {
                 sane_scan::OptionConstraint::StringList(list) => {
@@ -308,7 +320,7 @@ impl From<&DeviceOptionValue> for EditingDeviceOptionValue {
         match opt_value {
             DeviceOptionValue::Bool(val) => Self::Bool(*val),
             DeviceOptionValue::Int(val) => Self::Int(val.to_string()),
-            DeviceOptionValue::Fixed(val) => Self::Fixed(FixedI32::from(*val).to_string()),
+            DeviceOptionValue::Fixed(val) => Self::Fixed(sane_fixed_to_float(*val).to_string()),
             DeviceOptionValue::String(val) => Self::String(cstring_to_string(val, "option value")),
             DeviceOptionValue::Button => Self::Button,
             DeviceOptionValue::Group => Self::Group,
@@ -321,7 +333,7 @@ impl TryFrom<EditingDeviceOptionValue> for DeviceOptionValue {
         match opt_edit {
             EditingDeviceOptionValue::Bool(val) => Ok(Self::Bool(val)),
             EditingDeviceOptionValue::Int(val) => Ok(Self::Int(val.parse()?)),
-            EditingDeviceOptionValue::Fixed(val) => Ok(Self::Fixed(val.parse::<FixedI32<U16>>()?.to_num())),
+            EditingDeviceOptionValue::Fixed(val) => Ok(Self::Fixed(sane_float_to_fixed(val.parse()?))),
             EditingDeviceOptionValue::String(val) => Ok(Self::String(string_to_cstring(val))),
             EditingDeviceOptionValue::Button => Ok(Self::Button),
             EditingDeviceOptionValue::Group => Ok(Self::Group),
@@ -329,4 +341,30 @@ impl TryFrom<EditingDeviceOptionValue> for DeviceOptionValue {
     }
 
     type Error = Box<dyn std::error::Error>;
+}
+
+fn sane_fixed_to_float(fixed: i32) -> f64 {
+    let mut c = fixed.abs();
+    let mut sign = 1;
+
+    if fixed < 0 {
+        c = fixed - 1;
+        c = !c;
+        sign = -1;
+    }
+
+    ((1.0 * c as f64) / (2i32.pow(16)) as f64) * sign as f64
+}
+
+fn sane_float_to_fixed(fixed: f64) -> i32 {
+    let a = fixed * 2i32.pow(16) as f64;
+    let mut b = a.round() as i32;
+
+    if a < 0.0 {
+        b = b.abs();
+        b = !b;
+        b += 1;
+    }
+
+    b
 }
