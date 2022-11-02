@@ -121,7 +121,7 @@ impl eframe::App for RoboarchiveApp {
             ui.horizontal_wrapped(|ui| {
                 
                 // Refresh button
-                if ui.button("↻").on_hover_text_at_pointer("Refreshes the device list.").clicked() {
+                if ui.button("↻").on_hover_text_at_pointer("Refresh the device list").clicked() {
                     self.refresh_devices();
                 };
 
