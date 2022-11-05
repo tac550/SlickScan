@@ -87,6 +87,8 @@ impl RoboarchiveApp {
     }
 
     fn load_device_options(&mut self) {
+        self.config_options.clear();
+
         if let Some(handle) = &self.selected_handle {
             let device_options = match handle.get_options() {
                 Ok(options) => options,
@@ -109,8 +111,32 @@ impl RoboarchiveApp {
                 };
                 self.config_options.push(EditingDeviceOption::new(option, option_value));
 
-                dbg!(&self.config_options.last().unwrap().base_option);
+                if self.config_options.last().unwrap().base_option.option_idx == 2 {
+                    dbg!(&self.config_options.last().unwrap().base_option);
+                }
             }
+        }
+    }
+
+    fn apply_config_changes(&mut self) {
+        if let Some(handle) = &self.selected_handle {
+            for option in self.config_options.iter_mut() {
+                if !option.is_edited {
+                    continue;
+                }
+                
+                if let Ok(opt_val) = TryInto::<DeviceOptionValue>::try_into(&option.editing_value) {
+                    if let Err(error) = handle.set_option(&option.base_option, opt_val) {
+                        println!("Error applying configuration: {}", error);
+                    }
+                } else {
+                    println!("Error converting from editor value");
+                }
+            }
+
+            self.load_device_options();
+        } else {
+            println!("Error: Not attached to a device handle!");
         }
     }
 }
@@ -164,7 +190,7 @@ impl eframe::App for RoboarchiveApp {
                         }
 
                         if ui.button("Apply").clicked() {
-                            println!("Apply clicked");
+                            self.apply_config_changes();
                         }
                     });
                 });
@@ -180,8 +206,8 @@ impl eframe::App for RoboarchiveApp {
                                         cstring_to_string(&option.base_option.title, "group title"));
                                 } else {
                                     // Draw the option item's label (column 1)
-                                    ui.label(cstring_to_string(&option.base_option.title, "option title"))
-                                    .on_hover_text(cstring_to_string(&option.base_option.desc, "option description"));
+                                    let option_title = cstring_to_string(&option.base_option.title, "option title");
+                                    ui.label(option_title).on_hover_text(cstring_to_string(&option.base_option.desc, "option description"));
                                 }
 
                                 // Draw the option value controls (column 2)
@@ -212,6 +238,7 @@ fn string_to_cstring(string: String) -> CString {
 fn render_device_option_controls(ui: &mut egui::Ui, option: &mut EditingDeviceOption) {
     if option.base_option.cap.contains(OptionCapability::INACTIVE) {
         ui.colored_label(Color32::DARK_RED, "(Inactive)").on_hover_text("This option is inactive. There may be another option that, once applied, causes this option to take effect.");
+        return;
     }
 
     match &mut option.editing_value {
@@ -328,13 +355,13 @@ impl From<&DeviceOptionValue> for EditingDeviceOptionValue {
     }
 }
 
-impl TryFrom<EditingDeviceOptionValue> for DeviceOptionValue {
-    fn try_from(opt_edit: EditingDeviceOptionValue) -> Result<Self, Self::Error> {
+impl TryFrom<&EditingDeviceOptionValue> for DeviceOptionValue {
+    fn try_from(opt_edit: &EditingDeviceOptionValue) -> Result<Self, Self::Error> {
         match opt_edit {
-            EditingDeviceOptionValue::Bool(val) => Ok(Self::Bool(val)),
+            EditingDeviceOptionValue::Bool(val) => Ok(Self::Int( if *val {1} else {0} )),
             EditingDeviceOptionValue::Int(val) => Ok(Self::Int(val.parse()?)),
             EditingDeviceOptionValue::Fixed(val) => Ok(Self::Fixed(sane_float_to_fixed(val.parse()?))),
-            EditingDeviceOptionValue::String(val) => Ok(Self::String(string_to_cstring(val))),
+            EditingDeviceOptionValue::String(val) => Ok(Self::String(string_to_cstring(val.clone()))),
             EditingDeviceOptionValue::Button => Ok(Self::Button),
             EditingDeviceOptionValue::Group => Ok(Self::Group),
         }
