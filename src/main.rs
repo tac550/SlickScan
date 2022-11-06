@@ -124,13 +124,19 @@ impl RoboarchiveApp {
                 if !option.is_edited {
                     continue;
                 }
-                
-                if let Ok(opt_val) = TryInto::<DeviceOptionValue>::try_into(&option.editing_value) {
-                    if let Err(error) = handle.set_option(&option.base_option, opt_val) {
+
+                if let DeviceOptionValue::Button = option.original_value {
+                    if let Err(error) = handle.set_option_auto(&option.base_option) {
                         println!("Error applying configuration: {}", error);
                     }
                 } else {
-                    println!("Error converting from editor value");
+                    if let Ok(opt_val) = TryInto::<DeviceOptionValue>::try_into(&option.editing_value) {
+                        if let Err(error) = handle.set_option(&option.base_option, opt_val) {
+                            println!("Error applying configuration: {}", error);
+                        }
+                    } else {
+                        println!("Error converting from editor value");
+                    }
                 }
             }
 
@@ -288,9 +294,11 @@ fn render_device_option_controls(ui: &mut egui::Ui, option: &mut EditingDeviceOp
         },
         EditingDeviceOptionValue::Button => {
             if ui.button("Activate").clicked() {
-                println!("Button Option Activated (Need to implement)");
+                option.is_edited = true;
             }
-            return;
+            if option.is_edited {
+                ui.label("Will activate when Apply button is clicked.");
+            }
         },
         EditingDeviceOptionValue::Group => return,
     }
