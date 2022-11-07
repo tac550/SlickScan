@@ -1,6 +1,6 @@
-use std::ffi::CString;
+use std::{ffi::CString, sync::{Arc, Mutex}, thread::{JoinHandle, self}};
 
-use eframe::{egui::{self, Response}, epaint::Color32};
+use eframe::{egui::{self, Response, Image}, epaint::Color32};
 use sane_scan::{self, Sane, Device, DeviceHandle, DeviceOption, DeviceOptionValue, ValueType, OptionCapability};
 
 fn main() {
@@ -21,17 +21,28 @@ fn main() {
     }
 }
 
+struct ThDeviceHandle {
+    handle: DeviceHandle,
+}
+
+unsafe impl Send for ThDeviceHandle {}
+
 struct RoboarchiveApp {
     // SANE backend objects
     scanner_list: Vec<Device>,
     selected_scanner: usize,
     prev_selected_scanner: Option<usize>,
-    selected_handle: Option<DeviceHandle>,
+    selected_handle: Option<Arc<Mutex<ThDeviceHandle>>>,
     config_options: Vec<EditingDeviceOption>,
     sane_instance: Sane,
 
     // UI state controls
     show_config: bool,
+    scan_running: bool,
+
+    // Threading resources
+    image_queue: Arc<Mutex<Vec<Option<Image>>>>,
+    thread_handle: Option<JoinHandle<()>>,
 }
 
 impl RoboarchiveApp {
@@ -48,6 +59,9 @@ impl RoboarchiveApp {
             config_options: Default::default(),
             sane_instance,
             show_config: Default::default(),
+            scan_running: Default::default(),
+            image_queue: Default::default(),
+            thread_handle: Default::default(),
         }
     }
 
@@ -77,7 +91,7 @@ impl RoboarchiveApp {
         if let Some(device) = self.scanner_list.get(self.selected_scanner) {
             println!("Opening device {}", cstring_to_string(&device.name, "device name"));
             self.selected_handle = match device.open() {
-                Ok(handle) => Some(handle),
+                Ok(handle) => Some(Arc::new(Mutex::new(ThDeviceHandle { handle }))),
                 Err(error) => {
                     println!("Failed to open device: {}", error);
                     None
@@ -90,7 +104,7 @@ impl RoboarchiveApp {
         self.config_options.clear();
 
         if let Some(handle) = &self.selected_handle {
-            let device_options = match handle.get_options() {
+            let device_options = match handle.lock().unwrap().handle.get_options() {
                 Ok(options) => options,
                 Err(error) => {
                     println!("Failed to retrieve options: {}", error);
@@ -103,7 +117,7 @@ impl RoboarchiveApp {
                     ValueType::Button => DeviceOptionValue::Button,
                     ValueType::Group => DeviceOptionValue::Group,
                     _ => {
-                        match handle.get_option(&option) {
+                        match handle.lock().unwrap().handle.get_option(&option) {
                             Ok(opt) => opt,
                             Err(error) => DeviceOptionValue::String(string_to_cstring("ERROR: ".to_owned() + &error.to_string())),
                         }
@@ -126,12 +140,12 @@ impl RoboarchiveApp {
                 }
 
                 if let DeviceOptionValue::Button = option.original_value {
-                    if let Err(error) = handle.set_option_auto(&option.base_option) {
+                    if let Err(error) = handle.lock().unwrap().handle.set_option_auto(&option.base_option) {
                         println!("Error applying configuration: {}", error);
                     }
                 } else {
                     if let Ok(opt_val) = TryInto::<DeviceOptionValue>::try_into(&option.editing_value) {
-                        if let Err(error) = handle.set_option(&option.base_option, opt_val) {
+                        if let Err(error) = handle.lock().unwrap().handle.set_option(&option.base_option, opt_val) {
                             println!("Error applying configuration: {}", error);
                         }
                     } else {
@@ -144,6 +158,57 @@ impl RoboarchiveApp {
         } else {
             println!("Error: Not attached to a device handle!");
         }
+    }
+
+    fn start_scan(&mut self) {
+        if let Some(handle) = self.selected_handle.as_mut() {
+            self.scan_running = true;
+            if let Err(error) = handle.lock().unwrap().handle.start_scan() {
+                println!("Error occurred initiating scan: {}", error);
+                self.scan_running = false;
+                return;
+            }
+
+            self.start_reading_thread();
+        }
+    }
+
+    fn start_reading_thread(&mut self) {
+        if let Some(handle) = &self.selected_handle {
+            let handle = handle.clone();
+            let queue = self.image_queue.clone();
+            self.thread_handle = Some(thread::spawn(move || {
+                queue.lock().unwrap().clear();
+
+                let mut bytes_per_line = 0;
+                let mut lines = 0;
+
+                let (bytes_per_line, lines) = match handle.lock().unwrap().handle.get_parameters() {
+                    Ok(params) => (params.bytes_per_line, params.lines),
+                    Err(error) => {
+                        println!("Error retrieving scan parameters: {}", error);
+                        return
+                    },
+                };
+
+                let result = handle.lock().unwrap().handle.read_to_vec();
+
+                println!("{:?}", result.unwrap());
+            }));
+        }
+    }
+    fn stop_reading_thread(&mut self) {
+        if let Some(handle) = self.thread_handle.take() {
+            if let Err(error) = handle.join() {
+                println!("Error occurred when stopping scan: {:?}", error);
+            }
+        }
+    }
+
+    fn cancel_scan(&mut self) {
+        self.scan_running = false;
+
+        self.stop_reading_thread();
     }
 }
 
@@ -174,12 +239,22 @@ impl eframe::App for RoboarchiveApp {
                     };
                 });
 
-                ui.add_enabled_ui(self.selected_handle.is_some(), |ui| {
+                ui.add_enabled_ui(self.selected_handle.is_some() && !self.scan_running, |ui| {
                     // Scanner configuration dialog button
                     if ui.button("Configure scanner...").clicked() {
                         self.show_config = true;
 
                         self.load_device_options();
+                    }
+
+                    if ui.button("Start scanning").clicked() {
+                        self.start_scan();
+                    }
+                });
+
+                ui.add_enabled_ui(self.selected_handle.is_some() && self.scan_running, |ui| {
+                    if ui.button("Cancel scan").clicked() {
+                        self.cancel_scan();
                     }
                 })
             });
