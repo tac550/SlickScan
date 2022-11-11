@@ -222,7 +222,7 @@ impl RoboarchiveApp {
                     ctx.lock().unwrap().request_repaint();
 
                     queue_index += 1;
-                    if handle.lock().unwrap().handle.start_scan().is_err() || *interrupt.lock().unwrap() {
+                    if *interrupt.lock().unwrap() || handle.lock().unwrap().handle.start_scan().is_err() {
                         break;
                     }
                 }
@@ -230,18 +230,17 @@ impl RoboarchiveApp {
         }
     }
     fn stop_reading_thread(&mut self) {
+        *self.thread_interrupted.lock().unwrap() = true;
         if let Some(handle) = self.thread_handle.take() {
             if let Err(error) = handle.join() {
                 println!("Error occurred when stopping scan: {:?}", error);
-            } else {
-                self.scan_running = false;
             }
         }
     }
 
     fn cancel_scan(&mut self) {
-        *self.thread_interrupted.lock().unwrap() = true;
         self.stop_reading_thread();
+        self.scan_running = false;
     }
 }
 
