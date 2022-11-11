@@ -261,10 +261,9 @@ impl eframe::App for RoboarchiveApp {
                     if egui::ComboBox::from_label(" is the selected scanner.")
                         .show_index(ui, &mut self.selected_scanner, self.scanner_list.len(),
                         |i| match self.scanner_list.get(i) {
-                            Some(device) => format!("{} {} — {}",
+                            Some(device) => format!("{} — {}",
                                 cstring_to_string(&device.name, "device name"),
-                                cstring_to_string(&device.model, "device model"),
-                                cstring_to_string(&device.vendor, "device vendor")),
+                                cstring_to_string(&device.model, "device model")),
                             None => String::from("(None)"),
                         })
                     .on_disabled_hover_text("No scanner available—try clicking refresh.")
