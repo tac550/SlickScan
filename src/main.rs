@@ -38,6 +38,7 @@ struct RoboarchiveApp {
 
     // UI state controls
     ui_context: Arc<Mutex<Context>>,
+    search_network: bool,
     show_config: bool,
     scan_running: bool,
     image_max_x: f32,
@@ -62,6 +63,7 @@ impl RoboarchiveApp {
             config_options: Default::default(),
             sane_instance,
             ui_context: Arc::new(Mutex::new(cc.egui_ctx.clone())),
+            search_network: Default::default(),
             show_config: Default::default(),
             scan_running: Default::default(),
             image_max_x: 200.0,
@@ -72,7 +74,7 @@ impl RoboarchiveApp {
     }
 
     fn refresh_devices(&mut self) {
-        self.scanner_list = match self.sane_instance.get_devices(false) {
+        self.scanner_list = match self.sane_instance.get_devices(!self.search_network) {
             Ok(devices) => devices,
             Err(error) => {
                 println!("Error refreshing device list: {}", error);
@@ -252,6 +254,8 @@ impl eframe::App for RoboarchiveApp {
                 if ui.button("↻").on_hover_text_at_pointer("Refresh the device list").clicked() {
                     self.refresh_devices();
                 };
+
+                ui.checkbox(&mut self.search_network, "Search the network for devices");
 
                 ui.add_enabled_ui(!self.scanner_list.is_empty(), |ui| {
                     if egui::ComboBox::from_label(" is the selected scanner.")
