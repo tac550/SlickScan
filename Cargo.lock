@@ -1372,8 +1372,7 @@ dependencies = [
 [[package]]
 name = "sane-scan"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c8bb5a5d99ad7f7bd242286295c3e445062e30f4c35e4fe4e68d399aac35c9e"
+source = "git+https://github.com/tac550/sane-scan#f0fe68217587efbea654be30a2fcbfca1f0480aa"
 dependencies = [
  "bindgen",
  "bitflags",

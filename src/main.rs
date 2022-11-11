@@ -70,7 +70,7 @@ impl RoboarchiveApp {
     }
 
     fn refresh_devices(&mut self) {
-        self.scanner_list = match self.sane_instance.get_devices() {
+        self.scanner_list = match self.sane_instance.get_devices(false) {
             Ok(devices) => devices,
             Err(error) => {
                 println!("Error refreshing device list: {}", error);

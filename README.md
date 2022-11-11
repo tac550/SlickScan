@@ -13,8 +13,6 @@ Scanner must be SANE-compatible.
 
 Works best with scanners that use an automatic feeder.
 
-Only supports using a wired connection to the scanner.
-
 ## Testing
 
 I'm supporting testing using the built-in test backends that come with SANE.

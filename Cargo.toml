@@ -7,5 +7,5 @@ edition = "2021"
 
 [dependencies]
 eframe = "0.19.0"
-sane-scan = "0.1.1"
+sane-scan = { git = "https://github.com/tac550/sane-scan"}
 env_logger = "0.9.1"
