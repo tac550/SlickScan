@@ -1,6 +1,6 @@
 use std::{ffi::CString, sync::{Arc, Mutex}, thread::{JoinHandle, self}};
 
-use eframe::{egui::{self, Response, Image, Context}, epaint::{Color32, ColorImage, TextureHandle}};
+use eframe::{egui::{self, Response, Context}, epaint::{Color32, ColorImage, TextureHandle, Vec2}};
 use sane_scan::{self, Sane, Device, DeviceHandle, DeviceOption, DeviceOptionValue, ValueType, OptionCapability, Frame};
 
 fn main() {
@@ -40,10 +40,10 @@ struct RoboarchiveApp {
     ui_context: Arc<Mutex<Context>>,
     show_config: bool,
     scan_running: bool,
+    image_max_x: f32,
 
     // Threading resources
-    texture_handles: Arc<Mutex<Vec<TextureHandle>>>,
-    image_queue: Arc<Mutex<Vec<Option<Image>>>>,
+    texture_handles: Arc<Mutex<Vec<Option<TextureHandle>>>>,
     thread_handle: Option<JoinHandle<()>>,
 }
 
@@ -63,8 +63,8 @@ impl RoboarchiveApp {
             ui_context: Arc::new(Mutex::new(cc.egui_ctx.clone())),
             show_config: Default::default(),
             scan_running: Default::default(),
+            image_max_x: 200.0,
             texture_handles: Default::default(),
-            image_queue: Default::default(),
             thread_handle: Default::default(),
         }
     }
@@ -175,12 +175,10 @@ impl RoboarchiveApp {
         if let Some(handle) = &self.selected_handle {
             let handle = handle.clone();
             let texture_buf = self.texture_handles.clone();
-            let queue = self.image_queue.clone();
             let ctx = self.ui_context.clone();
             self.thread_handle = Some(thread::spawn(move || {
                 let mut queue_index: usize = 0;
                 texture_buf.lock().unwrap().clear();
-                queue.lock().unwrap().clear();
 
                 loop {
                     let (bytes_per_line, lines, format) = match handle.lock().unwrap().handle.get_parameters() {
@@ -215,11 +213,7 @@ impl RoboarchiveApp {
                     let result = insert_after_every(result, 3, 255);
 
                     let image = ColorImage::from_rgba_unmultiplied([pixels_per_line, lines], &result);
-                    texture_buf.lock().unwrap().push(ctx.lock().unwrap().load_texture(queue_index.to_string(), image, egui::TextureFilter::Linear));
-
-                    let tex_handle = texture_buf.lock().unwrap().last().unwrap().clone();
-
-                    queue.lock().unwrap().push(Some(egui::Image::new(&tex_handle, tex_handle.size_vec2())));
+                    texture_buf.lock().unwrap().push(Some(ctx.lock().unwrap().load_texture(queue_index.to_string(), image, egui::TextureFilter::Linear)));
 
                     ctx.lock().unwrap().request_repaint();
 
@@ -251,13 +245,11 @@ impl eframe::App for RoboarchiveApp {
         egui::TopBottomPanel::top("MainUI-TopPanel").show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
                 
-                // Refresh button
                 if ui.button("↻").on_hover_text_at_pointer("Refresh the device list").clicked() {
                     self.refresh_devices();
                 };
 
                 ui.add_enabled_ui(!self.scanner_list.is_empty(), |ui| {
-                    // Scanner selection dropdown
                     if egui::ComboBox::from_label(" is the selected scanner.")
                         .show_index(ui, &mut self.selected_scanner, self.scanner_list.len(),
                         |i| match self.scanner_list.get(i) {
@@ -274,7 +266,6 @@ impl eframe::App for RoboarchiveApp {
                 });
 
                 ui.add_enabled_ui(self.selected_handle.is_some() && !self.scan_running, |ui| {
-                    // Scanner configuration dialog button
                     if ui.button("Configure scanner...").clicked() {
                         self.show_config = true;
 
@@ -297,11 +288,15 @@ impl eframe::App for RoboarchiveApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.horizontal_wrapped(|ui| {
-                    for image in self.image_queue.lock().unwrap().iter().flatten() {
-                        ui.add(*image);
+                    for tex_handle in self.texture_handles.lock().unwrap().iter().flatten() {
+                        ui.image(tex_handle, scale_image_size(tex_handle.size_vec2(), self.image_max_x));
                     }
                 });
             });
+        });
+
+        egui::TopBottomPanel::bottom("MainUI-BottomPanel").show(ctx, |ui| {
+            ui.add(egui::Slider::new(&mut self.image_max_x, 100.0..=500.0).text("Preview size"));
         });
 
         if self.show_config {
@@ -456,6 +451,11 @@ fn repeat_all_elements<T: Clone>(ts: Vec<T>, repeated: usize) -> Vec<T> {
     }
 
     result
+}
+
+fn scale_image_size(original: Vec2, max_x: f32) -> Vec2 {
+    let factor = max_x / original.x;
+    original * factor
 }
 
 #[derive(Debug)]
