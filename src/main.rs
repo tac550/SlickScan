@@ -292,6 +292,10 @@ impl eframe::App for RoboarchiveApp {
             });
         });
 
+        egui::TopBottomPanel::bottom("MainUI-BottomPanel").show(ctx, |ui| {
+            ui.add(egui::Slider::new(&mut self.image_max_x, 100.0..=500.0).text("Preview size"));
+        });
+
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.horizontal_wrapped(|ui| {
@@ -300,10 +304,6 @@ impl eframe::App for RoboarchiveApp {
                     }
                 });
             });
-        });
-
-        egui::TopBottomPanel::bottom("MainUI-BottomPanel").show(ctx, |ui| {
-            ui.add(egui::Slider::new(&mut self.image_max_x, 100.0..=500.0).text("Preview size"));
         });
 
         if self.show_config {
