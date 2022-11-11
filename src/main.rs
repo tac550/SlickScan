@@ -128,10 +128,6 @@ impl RoboarchiveApp {
                     },
                 };
                 self.config_options.push(EditingDeviceOption::new(option, option_value));
-
-                if self.config_options.last().unwrap().base_option.option_idx == 2 {
-                    dbg!(&self.config_options.last().unwrap().base_option);
-                }
             }
         }
     }
@@ -143,18 +139,16 @@ impl RoboarchiveApp {
                     continue;
                 }
 
-                if let DeviceOptionValue::Button = option.original_value {
+                if let EditingDeviceOptionValue::Button = option.editing_value {
                     if let Err(error) = handle.lock().unwrap().handle.set_option_auto(&option.base_option) {
                         println!("Error applying configuration: {}", error);
                     }
-                } else {
-                    if let Ok(opt_val) = TryInto::<DeviceOptionValue>::try_into(&option.editing_value) {
-                        if let Err(error) = handle.lock().unwrap().handle.set_option(&option.base_option, opt_val) {
-                            println!("Error applying configuration: {}", error);
-                        }
-                    } else {
-                        println!("Error converting from editor value");
+                } else if let Ok(opt_val) = TryInto::<DeviceOptionValue>::try_into(&option.editing_value) {
+                    if let Err(error) = handle.lock().unwrap().handle.set_option(&option.base_option, opt_val) {
+                        println!("Error applying configuration: {}", error);
                     }
+                } else {
+                    println!("Error converting from editor value");
                 }
             }
 
@@ -303,10 +297,8 @@ impl eframe::App for RoboarchiveApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.horizontal_wrapped(|ui| {
-                    for entry in self.image_queue.lock().unwrap().iter() {
-                        if let Some(image) = entry {
-                            ui.add(*image);
-                        }
+                    for image in self.image_queue.lock().unwrap().iter().flatten() {
+                        ui.add(*image);
                     }
                 });
             });
@@ -516,7 +508,7 @@ impl From<&DeviceOptionValue> for EditingDeviceOptionValue {
 impl TryFrom<&EditingDeviceOptionValue> for DeviceOptionValue {
     fn try_from(opt_edit: &EditingDeviceOptionValue) -> Result<Self, Self::Error> {
         match opt_edit {
-            EditingDeviceOptionValue::Bool(val) => Ok(Self::Int( if *val {1} else {0} )),
+            EditingDeviceOptionValue::Bool(val) => Ok(Self::Int((*val).into())),
             EditingDeviceOptionValue::Int(val) => Ok(Self::Int(val.parse()?)),
             EditingDeviceOptionValue::Fixed(val) => Ok(Self::Fixed(sane_float_to_fixed(val.parse()?))),
             EditingDeviceOptionValue::String(val) => Ok(Self::String(string_to_cstring(val.clone()))),
