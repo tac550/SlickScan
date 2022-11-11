@@ -1,7 +1,7 @@
 use std::{ffi::CString, sync::{Arc, Mutex}, thread::{JoinHandle, self}};
 
-use eframe::{egui::{self, Response, Image}, epaint::Color32};
-use sane_scan::{self, Sane, Device, DeviceHandle, DeviceOption, DeviceOptionValue, ValueType, OptionCapability};
+use eframe::{egui::{self, Response, Image, Context}, epaint::{Color32, ColorImage, TextureHandle}};
+use sane_scan::{self, Sane, Device, DeviceHandle, DeviceOption, DeviceOptionValue, ValueType, OptionCapability, Frame};
 
 fn main() {
     env_logger::init();
@@ -37,16 +37,18 @@ struct RoboarchiveApp {
     sane_instance: Sane,
 
     // UI state controls
+    ui_context: Arc<Mutex<Context>>,
     show_config: bool,
     scan_running: bool,
 
     // Threading resources
+    texture_handles: Arc<Mutex<Vec<TextureHandle>>>,
     image_queue: Arc<Mutex<Vec<Option<Image>>>>,
     thread_handle: Option<JoinHandle<()>>,
 }
 
 impl RoboarchiveApp {
-    fn new(_cc: &eframe::CreationContext<'_>, sane_instance: Sane) -> Self {
+    fn new(cc: &eframe::CreationContext<'_>, sane_instance: Sane) -> Self {
         // Customize egui here with cc.egui_ctx.set_fonts and cc.egui_ctx.set_visuals.
         // Restore app state using cc.storage (requires the "persistence" feature).
         // Use the cc.gl (a glow::Context) to create graphics shaders and buffers that you can use
@@ -58,8 +60,10 @@ impl RoboarchiveApp {
             selected_handle: Default::default(),
             config_options: Default::default(),
             sane_instance,
+            ui_context: Arc::new(Mutex::new(cc.egui_ctx.clone())),
             show_config: Default::default(),
             scan_running: Default::default(),
+            texture_handles: Default::default(),
             image_queue: Default::default(),
             thread_handle: Default::default(),
         }
@@ -176,24 +180,60 @@ impl RoboarchiveApp {
     fn start_reading_thread(&mut self) {
         if let Some(handle) = &self.selected_handle {
             let handle = handle.clone();
+            let texture_buf = self.texture_handles.clone();
             let queue = self.image_queue.clone();
+            let ctx = self.ui_context.clone();
             self.thread_handle = Some(thread::spawn(move || {
+                let mut queue_index: usize = 0;
+                texture_buf.lock().unwrap().clear();
                 queue.lock().unwrap().clear();
 
-                let mut bytes_per_line = 0;
-                let mut lines = 0;
+                loop {
+                    let (bytes_per_line, lines, format) = match handle.lock().unwrap().handle.get_parameters() {
+                        Ok(params) => (
+                            TryInto::<usize>::try_into(params.bytes_per_line).expect("Failed to convert `bytes_per_line` to unsigned"),
+                            TryInto::<usize>::try_into(params.lines).expect("Failed to convert `lines` to unsigned"),
+                            params.format),
+                        Err(error) => {
+                            println!("Error retrieving scan parameters: {}", error);
+                            return
+                        },
+                    };
 
-                let (bytes_per_line, lines) = match handle.lock().unwrap().handle.get_parameters() {
-                    Ok(params) => (params.bytes_per_line, params.lines),
-                    Err(error) => {
-                        println!("Error retrieving scan parameters: {}", error);
-                        return
-                    },
-                };
+                    let result = match handle.lock().unwrap().handle.read_to_vec() {
+                        Ok(image) => image,
+                        Err(error) => {
+                            println!("Error reading image data: {}", error);
+                            return;
+                        },
+                    };
 
-                let result = handle.lock().unwrap().handle.read_to_vec();
+                    let pixels_per_line = match format {
+                        Frame::Rgb => bytes_per_line / 3,
+                        _ => bytes_per_line,
+                    };
 
-                println!("{:?}", result.unwrap());
+                    let result = match format {
+                        Frame::Rgb => result,
+                        _ => repeat_all_elements(result, 3),
+                    };
+
+                    let result = insert_after_every(result, 3, 255);
+
+                    let image = ColorImage::from_rgba_unmultiplied([pixels_per_line, lines], &result);
+                    texture_buf.lock().unwrap().push(ctx.lock().unwrap().load_texture(queue_index.to_string(), image, egui::TextureFilter::Linear));
+
+                    let tex_handle = texture_buf.lock().unwrap().last().unwrap().clone();
+
+                    queue.lock().unwrap().push(Some(egui::Image::new(&tex_handle, tex_handle.size_vec2())));
+
+                    ctx.lock().unwrap().request_repaint();
+
+                    queue_index += 1;
+                    if handle.lock().unwrap().handle.start_scan().is_err() || queue_index > 20 {
+                        break;
+                    }
+                }
             }));
         }
     }
@@ -214,7 +254,7 @@ impl RoboarchiveApp {
 
 impl eframe::App for RoboarchiveApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::TopBottomPanel::top("MainUI-TopPanel").show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
                 
                 // Refresh button
@@ -257,6 +297,18 @@ impl eframe::App for RoboarchiveApp {
                         self.cancel_scan();
                     }
                 })
+            });
+        });
+
+        egui::CentralPanel::default().show(ctx, |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    for entry in self.image_queue.lock().unwrap().iter() {
+                        if let Some(image) = entry {
+                            ui.add(*image);
+                        }
+                    }
+                });
             });
         });
 
@@ -389,6 +441,29 @@ fn option_edited_if_changed(response: Response, option: &mut EditingDeviceOption
     if response.changed() {
         option.is_edited = true;
     }
+}
+
+fn insert_after_every<T: Clone>(ts: Vec<T>, after: usize, elem: T) -> Vec<T> {
+    let mut result = Vec::new();
+    for (i, e) in ts.into_iter().enumerate() {
+        result.push(e);
+        if (i + 1) % after == 0 {
+            result.push(elem.clone());
+        }
+    }
+
+    result
+}
+
+fn repeat_all_elements<T: Clone>(ts: Vec<T>, repeated: usize) -> Vec<T> {
+    let mut result = Vec::new();
+    for e in ts.into_iter() {
+        for _ in 0..repeated {
+            result.push(e.clone());
+        }
+    }
+
+    result
 }
 
 #[derive(Debug)]
