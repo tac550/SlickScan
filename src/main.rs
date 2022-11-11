@@ -45,6 +45,7 @@ struct RoboarchiveApp {
     // Threading resources
     texture_handles: Arc<Mutex<Vec<Option<TextureHandle>>>>,
     thread_handle: Option<JoinHandle<()>>,
+    thread_interrupted: Arc<Mutex<bool>>,
 }
 
 impl RoboarchiveApp {
@@ -66,6 +67,7 @@ impl RoboarchiveApp {
             image_max_x: 200.0,
             texture_handles: Default::default(),
             thread_handle: Default::default(),
+            thread_interrupted: Default::default(),
         }
     }
 
@@ -167,6 +169,7 @@ impl RoboarchiveApp {
                 return;
             }
 
+            *self.thread_interrupted.lock().unwrap() = false;
             self.start_reading_thread();
         }
     }
@@ -176,6 +179,7 @@ impl RoboarchiveApp {
             let handle = handle.clone();
             let texture_buf = self.texture_handles.clone();
             let ctx = self.ui_context.clone();
+            let interrupt = self.thread_interrupted.clone();
             self.thread_handle = Some(thread::spawn(move || {
                 let mut queue_index: usize = 0;
                 texture_buf.lock().unwrap().clear();
@@ -218,7 +222,7 @@ impl RoboarchiveApp {
                     ctx.lock().unwrap().request_repaint();
 
                     queue_index += 1;
-                    if handle.lock().unwrap().handle.start_scan().is_err() || queue_index > 20 {
+                    if handle.lock().unwrap().handle.start_scan().is_err() || *interrupt.lock().unwrap() {
                         break;
                     }
                 }
@@ -229,13 +233,14 @@ impl RoboarchiveApp {
         if let Some(handle) = self.thread_handle.take() {
             if let Err(error) = handle.join() {
                 println!("Error occurred when stopping scan: {:?}", error);
+            } else {
+                self.scan_running = false;
             }
         }
     }
 
     fn cancel_scan(&mut self) {
-        self.scan_running = false;
-
+        *self.thread_interrupted.lock().unwrap() = true;
         self.stop_reading_thread();
     }
 }
