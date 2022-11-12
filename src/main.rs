@@ -1,7 +1,8 @@
-use std::{ffi::CString, sync::{Arc, Mutex}, thread::{JoinHandle, self}};
+use std::{ffi::CString, sync::{Arc, Mutex}, thread::{JoinHandle, self}, path::PathBuf};
 
 use eframe::{egui::{self, Response, Context}, epaint::{Color32, ColorImage, TextureHandle, Vec2}};
 use sane_scan::{self, Sane, Device, DeviceHandle, DeviceOption, DeviceOptionValue, ValueType, OptionCapability, Frame};
+use tinyfiledialogs::select_folder_dialog;
 
 fn main() {
     env_logger::init();
@@ -47,6 +48,9 @@ struct RoboarchiveApp {
     texture_handles: Arc<Mutex<Vec<Option<TextureHandle>>>>,
     thread_handle: Option<JoinHandle<()>>,
     thread_interrupted: Arc<Mutex<bool>>,
+
+    // I/O state information
+    root_location: Option<PathBuf>,
 }
 
 impl RoboarchiveApp {
@@ -70,6 +74,7 @@ impl RoboarchiveApp {
             texture_handles: Default::default(),
             thread_handle: Default::default(),
             thread_interrupted: Default::default(),
+            root_location: Default::default(),
         }
     }
 
@@ -250,7 +255,6 @@ impl eframe::App for RoboarchiveApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("MainUI-TopPanel").show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
-                
                 if ui.button("↻").on_hover_text_at_pointer("Refresh the device list").clicked() {
                     self.refresh_devices();
                 };
@@ -293,7 +297,21 @@ impl eframe::App for RoboarchiveApp {
         });
 
         egui::TopBottomPanel::bottom("MainUI-BottomPanel").show(ctx, |ui| {
-            ui.add(egui::Slider::new(&mut self.image_max_x, 100.0..=500.0).text("Preview size"));
+            ui.horizontal_wrapped(|ui| {
+                ui.add(egui::Slider::new(&mut self.image_max_x, 100.0..=500.0).text("Preview size"));
+
+                if ui.button("Select root save location...").clicked() {
+                    if let Some(path) = select_folder_dialog("Select root save location", "") {
+                        self.root_location = Some(PathBuf::from(path));
+                    }
+                }
+
+                if let Some(path) = &self.root_location {
+                    ui.colored_label(Color32::GREEN, path.canonicalize().unwrap_or_default().to_string_lossy());
+                } else {
+                    ui.colored_label(Color32::RED, "No save location selected");
+                }
+            });
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {

@@ -9,3 +9,4 @@ edition = "2021"
 eframe = "0.19.0"
 sane-scan = { git = "https://github.com/tac550/sane-scan"}
 env_logger = "0.9.1"
+tinyfiledialogs = "3.9.1"
