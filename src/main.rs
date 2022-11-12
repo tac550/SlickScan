@@ -1,8 +1,10 @@
 use std::{ffi::CString, sync::{Arc, Mutex}, thread::{JoinHandle, self}, path::PathBuf};
 
-use eframe::{egui::{self, Response, Context}, epaint::{Color32, ColorImage, TextureHandle, Vec2}};
+use eframe::{egui::{self, Response, Context, Sense}, epaint::{Color32, ColorImage, TextureHandle, Vec2}};
 use sane_scan::{self, Sane, Device, DeviceHandle, DeviceOption, DeviceOptionValue, ValueType, OptionCapability, Frame};
 use tinyfiledialogs::select_folder_dialog;
+
+const DEFAULT_FILE_NAME: &str = "scan.pdf";
 
 fn main() {
     env_logger::init();
@@ -44,6 +46,9 @@ struct RoboarchiveApp {
     scan_running: bool,
     image_max_x: f32,
 
+    selecting_page: u32,
+    path_field: Option<Response>,
+
     // Threading resources
     texture_handles: Arc<Mutex<Vec<Option<TextureHandle>>>>,
     thread_handle: Option<JoinHandle<()>>,
@@ -51,6 +56,7 @@ struct RoboarchiveApp {
 
     // I/O state information
     root_location: Option<PathBuf>,
+    file_save_path: String,
 }
 
 impl RoboarchiveApp {
@@ -71,10 +77,13 @@ impl RoboarchiveApp {
             show_config: Default::default(),
             scan_running: Default::default(),
             image_max_x: 200.0,
+            selecting_page: 1,
+            path_field: Default::default(),
             texture_handles: Default::default(),
             thread_handle: Default::default(),
             thread_interrupted: Default::default(),
             root_location: Default::default(),
+            file_save_path: Default::default(),
         }
     }
 
@@ -311,6 +320,10 @@ impl eframe::App for RoboarchiveApp {
                 } else {
                     ui.colored_label(Color32::RED, "No save location selected");
                 }
+
+                ui.label("File name/path: ");
+
+                self.path_field = Some(ui.add(egui::TextEdit::singleline(&mut self.file_save_path).hint_text(DEFAULT_FILE_NAME).cursor_at_end(false)));
             });
         });
 
@@ -318,7 +331,16 @@ impl eframe::App for RoboarchiveApp {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.horizontal_wrapped(|ui| {
                     for tex_handle in self.texture_handles.lock().unwrap().iter().flatten() {
-                        ui.image(tex_handle, scale_image_size(tex_handle.size_vec2(), self.image_max_x));
+                        if ui.add(egui::Image::new(tex_handle, scale_image_size(tex_handle.size_vec2(), self.image_max_x))
+                            .tint(Color32::from_rgba_premultiplied(48, 229, 242, 50))
+                            .sense(Sense::click()))
+                                .on_hover_text_at_pointer(format!("Page {}", self.selecting_page))
+                                .clicked() {
+                                    self.selecting_page += 1;
+                                    if let Some(resp) = &self.path_field {
+                                        resp.request_focus();
+                                    }
+                                };
                     }
                 });
             });
