@@ -51,8 +51,8 @@ struct RoboarchiveApp {
 
     // Threading resources
     texture_handles: Arc<Mutex<Vec<Option<TextureHandle>>>>,
-    thread_handle: Option<JoinHandle<()>>,
-    thread_interrupted: Arc<Mutex<bool>>,
+    scan_thread_handle: Option<JoinHandle<()>>,
+    scan_cancelled: Arc<Mutex<bool>>,
 
     // I/O state information
     root_location: Option<PathBuf>,
@@ -80,8 +80,8 @@ impl RoboarchiveApp {
             selecting_page: 1,
             path_field: Default::default(),
             texture_handles: Default::default(),
-            thread_handle: Default::default(),
-            thread_interrupted: Default::default(),
+            scan_thread_handle: Default::default(),
+            scan_cancelled: Default::default(),
             root_location: Default::default(),
             file_save_path: Default::default(),
         }
@@ -185,7 +185,7 @@ impl RoboarchiveApp {
                 return;
             }
 
-            *self.thread_interrupted.lock().unwrap() = false;
+            *self.scan_cancelled.lock().unwrap() = false;
             self.start_reading_thread();
         }
     }
@@ -195,8 +195,8 @@ impl RoboarchiveApp {
             let handle = handle.clone();
             let texture_buf = self.texture_handles.clone();
             let ctx = self.ui_context.clone();
-            let interrupt = self.thread_interrupted.clone();
-            self.thread_handle = Some(thread::spawn(move || {
+            let interrupt = self.scan_cancelled.clone();
+            self.scan_thread_handle = Some(thread::spawn(move || {
                 let mut queue_index: usize = 0;
                 texture_buf.lock().unwrap().clear();
 
@@ -246,8 +246,8 @@ impl RoboarchiveApp {
         }
     }
     fn stop_reading_thread(&mut self) {
-        *self.thread_interrupted.lock().unwrap() = true;
-        if let Some(handle) = self.thread_handle.take() {
+        *self.scan_cancelled.lock().unwrap() = true;
+        if let Some(handle) = self.scan_thread_handle.take() {
             if let Err(error) = handle.join() {
                 println!("Error occurred when stopping scan: {:?}", error);
             }
@@ -324,6 +324,10 @@ impl eframe::App for RoboarchiveApp {
                 ui.label("File name/path: ");
 
                 self.path_field = Some(ui.add(egui::TextEdit::singleline(&mut self.file_save_path).hint_text(DEFAULT_FILE_NAME).cursor_at_end(false)));
+
+                if self.path_field.as_ref().unwrap().lost_focus() && ctx.input().key_pressed(egui::Key::Enter) {
+                    println!("Save the file here (Need to implement)");
+                }
             });
         });
 
