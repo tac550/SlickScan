@@ -9,7 +9,8 @@ const DEFAULT_FILE_NAME: &str = "scan.pdf";
 fn main() {
     env_logger::init();
 
-    let options = eframe::NativeOptions::default();
+    let mut options = eframe::NativeOptions::default();
+    options.initial_window_size = Some(Vec2::new(1050.0, 850.0));
 
     // Initialize SANE components
     let version_code = 0;
