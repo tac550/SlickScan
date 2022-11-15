@@ -45,12 +45,15 @@ struct RoboarchiveApp {
     show_config: bool,
     scan_running: bool,
     image_max_x: f32,
+    selecting_page: usize,
 
-    selecting_page: u32,
+    scanned_images: Arc<Mutex<Vec<Option<ScannedImage>>>>,
+    selected_page_indices: Vec<usize>,
+
+    // UI Response references
     path_field: Option<Response>,
 
     // Threading resources
-    texture_handles: Arc<Mutex<Vec<Option<TextureHandle>>>>,
     scan_thread_handle: Option<JoinHandle<()>>,
     scan_cancelled: Arc<Mutex<bool>>,
 
@@ -77,9 +80,10 @@ impl RoboarchiveApp {
             show_config: Default::default(),
             scan_running: Default::default(),
             image_max_x: 200.0,
-            selecting_page: 1,
+            selecting_page: Default::default(),
+            scanned_images: Default::default(),
+            selected_page_indices: Default::default(),
             path_field: Default::default(),
-            texture_handles: Default::default(),
             scan_thread_handle: Default::default(),
             scan_cancelled: Default::default(),
             root_location: Default::default(),
@@ -193,12 +197,14 @@ impl RoboarchiveApp {
     fn start_reading_thread(&mut self) {
         if let Some(handle) = &self.selected_handle {
             let handle = handle.clone();
-            let texture_buf = self.texture_handles.clone();
+            let image_buf = self.scanned_images.clone();
             let ctx = self.ui_context.clone();
             let interrupt = self.scan_cancelled.clone();
+
+            self.clear_selection();
             self.scan_thread_handle = Some(thread::spawn(move || {
                 let mut queue_index: usize = 0;
-                texture_buf.lock().unwrap().clear();
+                image_buf.lock().unwrap().clear();
 
                 loop {
                     let (bytes_per_line, lines, format) = match handle.lock().unwrap().handle.get_parameters() {
@@ -212,7 +218,7 @@ impl RoboarchiveApp {
                         },
                     };
 
-                    let result = match handle.lock().unwrap().handle.read_to_vec() {
+                    let pixels = match handle.lock().unwrap().handle.read_to_vec() {
                         Ok(image) => image,
                         Err(error) => {
                             println!("Error reading image data: {}", error);
@@ -225,15 +231,22 @@ impl RoboarchiveApp {
                         _ => bytes_per_line,
                     };
 
-                    let result = match format {
-                        Frame::Rgb => result,
-                        _ => repeat_all_elements(result, 3),
+                    let pixels = match format {
+                        Frame::Rgb => pixels,
+                        _ => repeat_all_elements(pixels, 3),
                     };
 
-                    let result = insert_after_every(result, 3, 255);
+                    let pixels = insert_after_every(pixels, 3, 255);
 
-                    let image = ColorImage::from_rgba_unmultiplied([pixels_per_line, lines], &result);
-                    texture_buf.lock().unwrap().push(Some(ctx.lock().unwrap().load_texture(queue_index.to_string(), image, egui::TextureFilter::Linear)));
+                    let image = ColorImage::from_rgba_unmultiplied([pixels_per_line, lines], &pixels);
+
+                    let scanned_image = ScannedImage {
+                        pixels,
+                        texture_handle: ctx.lock().unwrap().load_texture(queue_index.to_string(), image, egui::TextureFilter::Linear),
+                        selected_as_page: None,
+                    };
+
+                    image_buf.lock().unwrap().push(Some(scanned_image));
 
                     ctx.lock().unwrap().request_repaint();
 
@@ -258,10 +271,28 @@ impl RoboarchiveApp {
         self.stop_reading_thread();
         self.scan_running = false;
     }
+
+    fn clear_selection_from(&mut self, index: usize) {
+        for n in (index..self.selected_page_indices.len()).rev() {
+            self.scanned_images.lock().unwrap()[self.selected_page_indices[n]].as_mut().unwrap().selected_as_page = None;
+            self.selected_page_indices.pop();
+        }
+
+        self.selecting_page = index;
+    }
+
+    fn clear_selection(&mut self) {
+        self.clear_selection_from(0);
+    }
 }
 
 impl eframe::App for RoboarchiveApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+
+        if ctx.input().key_pressed(egui::Key::Escape) {
+            self.clear_selection();
+        }
+
         egui::TopBottomPanel::top("MainUI-TopPanel").show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
                 if ui.button("↻").on_hover_text_at_pointer("Refresh the device list").clicked() {
@@ -331,16 +362,28 @@ impl eframe::App for RoboarchiveApp {
             });
         });
 
+        let mut clearing_from_index: Option<usize> = None;
+
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.horizontal_wrapped(|ui| {
-                    for tex_handle in self.texture_handles.lock().unwrap().iter().flatten() {
-                        if ui.add(egui::Image::new(tex_handle, scale_image_size(tex_handle.size_vec2(), self.image_max_x))
-                            .tint(Color32::from_rgba_premultiplied(48, 229, 242, 50))
+                    for (i, image) in self.scanned_images.lock().unwrap().iter_mut().flatten().enumerate() {
+                        if ui.add(egui::Image::new(&image.texture_handle, scale_image_size(image.texture_handle.size_vec2(), self.image_max_x))
+                            .tint(if let Some(n) = image.selected_as_page {selection_tint_color(n)} else {Color32::WHITE})
                             .sense(Sense::click()))
-                                .on_hover_text_at_pointer(format!("Page {}", self.selecting_page))
+                                .on_hover_text_at_pointer(if let Some(page) = image.selected_as_page {format!("Page {}", page+1)} else {format!("Selecting page {}...", self.selecting_page+1)})
                                 .clicked() {
-                                    self.selecting_page += 1;
+                                    match image.selected_as_page {
+                                        Some(idx) => {
+                                            clearing_from_index = Some(idx);
+                                        },
+                                        None => {
+                                            self.selected_page_indices.push(i);
+                                            image.selected_as_page = Some(self.selecting_page);
+                                            self.selecting_page += 1;    
+                                        },
+                                    }
+                                    
                                     if let Some(resp) = &self.path_field {
                                         resp.request_focus();
                                     }
@@ -349,6 +392,10 @@ impl eframe::App for RoboarchiveApp {
                 });
             });
         });
+
+        if let Some(idx) = clearing_from_index {
+            self.clear_selection_from(idx);
+        }
 
         if self.show_config {
             egui::Window::new("Scanner Configuration").default_size([680.0, 500.0]).show(ctx, |ui| {
@@ -481,6 +528,10 @@ fn option_edited_if_changed(response: Response, option: &mut EditingDeviceOption
     }
 }
 
+fn selection_tint_color(page_i: usize) -> Color32 {
+    Color32::from_rgba_premultiplied(255 - ((page_i+1) * 50) as u8, 255 - ((page_i+1) * 50) as u8, 255, 50)
+}
+
 fn insert_after_every<T: Clone>(ts: Vec<T>, after: usize, elem: T) -> Vec<T> {
     let mut result = Vec::new();
     for (i, e) in ts.into_iter().enumerate() {
@@ -507,6 +558,12 @@ fn repeat_all_elements<T: Clone>(ts: Vec<T>, repeated: usize) -> Vec<T> {
 fn scale_image_size(original: Vec2, max_x: f32) -> Vec2 {
     let factor = max_x / original.x;
     original * factor
+}
+
+struct ScannedImage {
+    pixels: Vec<u8>,
+    texture_handle: TextureHandle,
+    selected_as_page: Option<usize>,
 }
 
 #[derive(Debug)]
