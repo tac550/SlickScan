@@ -2,9 +2,10 @@ use std::{ffi::CString, sync::{Arc, Mutex}, thread::{JoinHandle, self}, path::Pa
 
 use eframe::{egui::{self, Response, Context, Sense}, epaint::{Color32, ColorImage, TextureHandle, Vec2}};
 use sane_scan::{self, Sane, Device, DeviceHandle, DeviceOption, DeviceOptionValue, ValueType, OptionCapability, Frame};
-use tinyfiledialogs::select_folder_dialog;
+use tinyfiledialogs::{select_folder_dialog, MessageBoxIcon, message_box_ok};
 
 const DEFAULT_FILE_NAME: &str = "scan.pdf";
+const ERR_DIALOG_TITLE: &str = "Roboarchive Error";
 
 fn main() {
     env_logger::init();
@@ -21,7 +22,7 @@ fn main() {
             "Roboarchive",
             options,
             Box::new(|cc| Box::new(RoboarchiveApp::new(cc, sane_instance)))),
-        Err(error) => println!("Error occurred setting up SANE scanner interface: {}", error),
+        Err(error) => message_box_ok(ERR_DIALOG_TITLE, &format!("Error occurred setting up SANE scanner interface: {}", error), MessageBoxIcon::Error),
     }
 }
 
@@ -96,7 +97,7 @@ impl RoboarchiveApp {
         self.scanner_list = match self.sane_instance.get_devices(!self.search_network) {
             Ok(devices) => devices,
             Err(error) => {
-                println!("Error refreshing device list: {}", error);
+                message_box_ok(ERR_DIALOG_TITLE, &format!("Error refreshing device list: {}", error), MessageBoxIcon::Warning);
                 vec![]
             },
         };
@@ -116,11 +117,10 @@ impl RoboarchiveApp {
         self.show_config = false;
 
         if let Some(device) = self.scanner_list.get(self.selected_scanner) {
-            println!("Opening device {}", cstring_to_string(&device.name, "device name"));
             self.selected_handle = match device.open() {
                 Ok(handle) => Some(Arc::new(Mutex::new(ThDeviceHandle { handle }))),
                 Err(error) => {
-                    println!("Failed to open device: {}", error);
+                    message_box_ok(ERR_DIALOG_TITLE, &format!("Failed to open device: {}", error), MessageBoxIcon::Error);
                     None
                 },
             };
@@ -134,7 +134,7 @@ impl RoboarchiveApp {
             let device_options = match handle.lock().unwrap().handle.get_options() {
                 Ok(options) => options,
                 Err(error) => {
-                    println!("Failed to retrieve options: {}", error);
+                    message_box_ok(ERR_DIALOG_TITLE, &format!("Failed to retrieve options: {}", error), MessageBoxIcon::Warning);
                     vec![]
                 },
             };
@@ -164,20 +164,20 @@ impl RoboarchiveApp {
 
                 if let EditingDeviceOptionValue::Button = option.editing_value {
                     if let Err(error) = handle.lock().unwrap().handle.set_option_auto(&option.base_option) {
-                        println!("Error applying configuration: {}", error);
+                        message_box_ok(ERR_DIALOG_TITLE, &format!("Error applying configuration: {}", error), MessageBoxIcon::Error);
                     }
                 } else if let Ok(opt_val) = TryInto::<DeviceOptionValue>::try_into(&option.editing_value) {
                     if let Err(error) = handle.lock().unwrap().handle.set_option(&option.base_option, opt_val) {
-                        println!("Error applying configuration: {}", error);
+                        message_box_ok(ERR_DIALOG_TITLE, &format!("Error applying configuration: {}", error), MessageBoxIcon::Error);
                     }
                 } else {
-                    println!("Error converting from editor value");
+                    message_box_ok(ERR_DIALOG_TITLE, "Error converting from editor value", MessageBoxIcon::Error);
                 }
             }
 
             self.load_device_options();
         } else {
-            println!("Error: Not attached to a device handle!");
+            message_box_ok(ERR_DIALOG_TITLE, "Not attached to a device handle!", MessageBoxIcon::Error);
         }
     }
 
@@ -185,7 +185,7 @@ impl RoboarchiveApp {
         if let Some(handle) = self.selected_handle.as_mut() {
             self.scan_running = true;
             if let Err(error) = handle.lock().unwrap().handle.start_scan() {
-                println!("Error occurred initiating scan: {}", error);
+                message_box_ok(ERR_DIALOG_TITLE, &format!("Error occurred while initiating scan: {}", error), MessageBoxIcon::Error);
                 self.scan_running = false;
                 return;
             }
@@ -214,7 +214,7 @@ impl RoboarchiveApp {
                             TryInto::<usize>::try_into(params.lines).expect("Failed to convert `lines` to unsigned"),
                             params.format),
                         Err(error) => {
-                            println!("Error retrieving scan parameters: {}", error);
+                            message_box_ok(ERR_DIALOG_TITLE, &format!("Error retrieving scan parameters: {}", error), MessageBoxIcon::Error);
                             return
                         },
                     };
@@ -222,7 +222,7 @@ impl RoboarchiveApp {
                     let pixels = match handle.lock().unwrap().handle.read_to_vec() {
                         Ok(image) => image,
                         Err(error) => {
-                            println!("Error reading image data: {}", error);
+                            message_box_ok(ERR_DIALOG_TITLE, &format!("Error reading image data: {}", error), MessageBoxIcon::Error);
                             return;
                         },
                     };
@@ -263,7 +263,8 @@ impl RoboarchiveApp {
         *self.scan_cancelled.lock().unwrap() = true;
         if let Some(handle) = self.scan_thread_handle.take() {
             if let Err(error) = handle.join() {
-                println!("Error occurred when stopping scan: {:?}", error);
+                message_box_ok(ERR_DIALOG_TITLE, "Error occurred while stopping scan (see console for details)", MessageBoxIcon::Error);
+                println!("Error occurred while stopping scan: {:?}", error);
             }
         }
     }
@@ -284,6 +285,10 @@ impl RoboarchiveApp {
 
     fn clear_selection(&mut self) {
         self.clear_selection_from(0);
+    }
+
+    fn write_pdf(&mut self) {
+        
     }
 }
 
@@ -358,7 +363,7 @@ impl eframe::App for RoboarchiveApp {
                 self.path_field = Some(ui.add(egui::TextEdit::singleline(&mut self.file_save_path).hint_text(DEFAULT_FILE_NAME).cursor_at_end(false)));
 
                 if self.path_field.as_ref().unwrap().lost_focus() && ctx.input().key_pressed(egui::Key::Enter) {
-                    println!("Save the file here (Need to implement)");
+                    self.write_pdf();
                 }
             });
         });
