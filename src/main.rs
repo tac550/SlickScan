@@ -1,4 +1,4 @@
-use std::{ffi::CString, sync::{Arc, Mutex}, thread::{JoinHandle, self}, path::PathBuf, fs::File, io::BufWriter};
+use std::{ffi::CString, sync::{Arc, Mutex}, thread::{JoinHandle, self}, path::PathBuf, fs::File, io::BufWriter, error::Error};
 
 use eframe::{egui::{self, Response, Context, Sense}, epaint::{Color32, ColorImage, TextureHandle, Vec2}};
 use printpdf::{PdfDocument, Mm, ImageXObject, Px, ColorSpace, ColorBits, Image, ImageTransform};
@@ -27,7 +27,7 @@ fn main() {
             "Roboarchive",
             options,
             Box::new(|cc| Box::new(RoboarchiveApp::new(cc, sane_instance)))),
-        Err(error) => message_box_ok(ERR_DIALOG_TITLE, &format!("Error occurred setting up SANE scanner interface: {}", error), MessageBoxIcon::Error),
+        Err(error) => message_box_ok(ERR_DIALOG_TITLE, &format!("Error occurred while setting up SANE scanner interface: {}", error), MessageBoxIcon::Error),
     }
 }
 
@@ -277,7 +277,7 @@ impl RoboarchiveApp {
 
     fn clear_selection_from(&mut self, index: usize) {
         for n in (index..self.selected_page_indices.len()).rev() {
-            self.scanned_images.lock().unwrap()[self.selected_page_indices[n]].as_mut().unwrap().selected_as_page = None;
+            self.scanned_images.lock().unwrap()[self.selected_page_indices[n]].as_mut().expect("Page index exceeded size of image vector").selected_as_page = None;
             self.selected_page_indices.pop();
         }
 
@@ -288,12 +288,16 @@ impl RoboarchiveApp {
         self.clear_selection_from(0);
     }
 
-    fn write_pdf(&mut self) {
+    fn mark_selection_saved(&mut self) {
+        
+    }
+
+    fn write_pdf(&mut self) -> Result<(), Box<dyn Error>> {
         let (doc, page1, layer1) = PdfDocument::new("PDF_Document_title", Mm(LETTER_WIDTH_MM), Mm(LETTER_HEIGHT_MM), "Layer 1");
         let current_layer = doc.get_page(page1).get_layer(layer1);
 
-        let mut texture_mutex = self.scanned_images.lock().unwrap();
-        let image_data = texture_mutex[self.selected_page_indices[0]].as_mut().unwrap();
+        let mut images_mutex = self.scanned_images.lock().unwrap();
+        let image_data = images_mutex[self.selected_page_indices[0]].as_mut().expect("Page index exceeded size of image vector");
 
         let image = Image::from(ImageXObject {
             width: Px(image_data.texture_handle.size()[0]),
@@ -321,7 +325,9 @@ impl RoboarchiveApp {
             dpi: None,
         });
 
-        doc.save(&mut BufWriter::new(File::create("test_working.pdf").unwrap())).unwrap();
+        doc.save(&mut BufWriter::new(File::create("test_working.pdf")?))?;
+
+        Ok(())
     }
 }
 
@@ -395,8 +401,15 @@ impl eframe::App for RoboarchiveApp {
 
                 self.path_field = Some(ui.add(egui::TextEdit::singleline(&mut self.file_save_path).hint_text(DEFAULT_FILE_NAME).cursor_at_end(false)));
 
-                if self.path_field.as_ref().unwrap().lost_focus() && ctx.input().key_pressed(egui::Key::Enter) {
-                    self.write_pdf();
+                if let Some(field) = &self.path_field {
+                    if field.lost_focus() && ctx.input().key_pressed(egui::Key::Enter) {
+                        if let Err(error) = self.write_pdf() {
+                            message_box_ok(ERR_DIALOG_TITLE, &format!("Error occurred while saving PDF file: {}", error), MessageBoxIcon::Warning)
+                        } else {
+                            self.mark_selection_saved();
+                            self.clear_selection();
+                        }
+                    }
                 }
             });
         });
