@@ -9,6 +9,8 @@ const DEFAULT_FILE_NAME: &str = "scan.pdf";
 const ERR_DIALOG_TITLE: &str = "Roboarchive Error";
 const LETTER_WIDTH_MM: f64 = 215.9;
 const LETTER_HEIGHT_MM: f64 = 279.4;
+const LETTER_WIDTH_IN: f64 = 8.5;
+const LETTER_HEIGHT_IN: f64 = 11.0;
 
 fn main() {
     env_logger::init();
@@ -54,8 +56,9 @@ struct RoboarchiveApp {
     image_max_x: f32,
     selecting_page: usize,
 
-    scanned_images: Arc<Mutex<Vec<Option<ScannedImage>>>>,
+    scanned_images: Arc<Mutex<Vec<ScannedImage>>>,
     selected_page_indices: Vec<usize>,
+    show_saved_images: bool,
 
     // UI Response references
     path_field: Option<Response>,
@@ -86,6 +89,7 @@ impl RoboarchiveApp {
             selecting_page: Default::default(),
             scanned_images: Default::default(),
             selected_page_indices: Default::default(),
+            show_saved_images: Default::default(),
             path_field: Default::default(),
             scan_thread_handle: Default::default(),
             scan_cancelled: Default::default(),
@@ -246,9 +250,10 @@ impl RoboarchiveApp {
                         pixels,
                         texture_handle: ctx.lock().unwrap().load_texture(queue_index.to_string(), image, egui::TextureFilter::Linear),
                         selected_as_page: None,
+                        saved_to_file: false,
                     };
 
-                    image_buf.lock().unwrap().push(Some(scanned_image));
+                    image_buf.lock().unwrap().push(scanned_image);
 
                     ctx.lock().unwrap().request_repaint();
 
@@ -277,7 +282,8 @@ impl RoboarchiveApp {
 
     fn clear_selection_from(&mut self, index: usize) {
         for n in (index..self.selected_page_indices.len()).rev() {
-            self.scanned_images.lock().unwrap()[self.selected_page_indices[n]].as_mut().expect("Page index exceeded size of image vector").selected_as_page = None;
+            self.scanned_images.lock().unwrap()[self.selected_page_indices[n]]
+                .selected_as_page = None;
             self.selected_page_indices.pop();
         }
 
@@ -289,15 +295,20 @@ impl RoboarchiveApp {
     }
 
     fn mark_selection_saved(&mut self) {
-        
+        for n in (0..self.selected_page_indices.len()).rev() {
+            self.scanned_images.lock().unwrap()[self.selected_page_indices[n]]
+                .saved_to_file = true;
+        }
     }
 
     fn write_pdf(&mut self) -> Result<(), Box<dyn Error>> {
         let (doc, page1, layer1) = PdfDocument::new("PDF_Document_title", Mm(LETTER_WIDTH_MM), Mm(LETTER_HEIGHT_MM), "Layer 1");
         let current_layer = doc.get_page(page1).get_layer(layer1);
 
-        let mut images_mutex = self.scanned_images.lock().unwrap();
-        let image_data = images_mutex[self.selected_page_indices[0]].as_mut().expect("Page index exceeded size of image vector");
+        let images_mutex = self.scanned_images.lock().unwrap();
+        let image_data = images_mutex.get(*self.selected_page_indices.get(0)
+            .ok_or("No pages selected")?)
+            .ok_or("Page index exceeded size of image vector")?;
 
         let image = Image::from(ImageXObject {
             width: Px(image_data.texture_handle.size()[0]),
@@ -313,8 +324,8 @@ impl RoboarchiveApp {
         let inches_unscaled_x = image_data.texture_handle.size()[0] as f64 / 300.0;
         let inches_unscaled_y = image_data.texture_handle.size()[1] as f64 / 300.0;
 
-        let scale_factor_x = 8.5 / inches_unscaled_x;
-        let scale_factor_y = 11.0 / inches_unscaled_y;
+        let scale_factor_x = LETTER_WIDTH_IN / inches_unscaled_x;
+        let scale_factor_y = LETTER_HEIGHT_IN / inches_unscaled_y;
 
         image.add_to_layer(current_layer, ImageTransform {
             translate_x: None,
@@ -355,7 +366,7 @@ impl eframe::App for RoboarchiveApp {
                                 cstring_to_string(&device.model, "device model")),
                             None => String::from("(None)"),
                         })
-                    .on_disabled_hover_text("No scanner available—try clicking refresh.")
+                    .on_disabled_hover_text("No scanner available—try clicking refresh")
                     .changed() {
                         self.open_selected_device();
                     };
@@ -411,6 +422,9 @@ impl eframe::App for RoboarchiveApp {
                         }
                     }
                 }
+
+                ui.checkbox(&mut self.show_saved_images, "Show saved")
+                    .on_hover_text("Show scanned images even after they are saved to a file (selecting reveals previously-saved images)");
             });
         });
 
@@ -419,7 +433,11 @@ impl eframe::App for RoboarchiveApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.horizontal_wrapped(|ui| {
-                    for (i, image) in self.scanned_images.lock().unwrap().iter_mut().flatten().enumerate() {
+                    for (i, image) in self.scanned_images.lock().unwrap().iter_mut().enumerate() {
+                        if image.saved_to_file && !self.show_saved_images {
+                            continue;
+                        }
+                        
                         if ui.add(egui::Image::new(&image.texture_handle, scale_image_size(image.texture_handle.size_vec2(), self.image_max_x))
                             .tint(if let Some(n) = image.selected_as_page {selection_tint_color(n)} else {Color32::WHITE})
                             .sense(Sense::click()))
@@ -439,7 +457,7 @@ impl eframe::App for RoboarchiveApp {
                                     if let Some(resp) = &self.path_field {
                                         resp.request_focus();
                                     }
-                                };
+                        };
                     }
                 });
             });
@@ -627,6 +645,7 @@ struct ScannedImage {
     pixels: Vec<u8>,
     texture_handle: TextureHandle,
     selected_as_page: Option<usize>,
+    saved_to_file: bool,
 }
 
 #[derive(Debug)]
