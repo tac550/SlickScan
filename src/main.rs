@@ -15,8 +15,10 @@ const LETTER_HEIGHT_MM: f64 = 279.4;
 fn main() {
     env_logger::init();
 
-    let mut options = eframe::NativeOptions::default();
-    options.initial_window_size = Some(Vec2::new(1050.0, 850.0));
+    let options = eframe::NativeOptions {
+        initial_window_size: Some(Vec2::new(1050.0, 850.0)),
+        ..Default::default()
+    };
 
     // Initialize SANE components
     let version_code = 0;
@@ -71,10 +73,6 @@ struct RoboarchiveApp {
 
 impl RoboarchiveApp {
     fn new(cc: &eframe::CreationContext<'_>, sane_instance: Sane) -> Self {
-        // Customize egui here with cc.egui_ctx.set_fonts and cc.egui_ctx.set_visuals.
-        // Restore app state using cc.storage (requires the "persistence" feature).
-        // Use the cc.gl (a glow::Context) to create graphics shaders and buffers that you can use
-        // for e.g. egui::PaintCallback.
         Self {
             scanner_list: Default::default(),
             selected_scanner: Default::default(),
@@ -316,7 +314,7 @@ impl RoboarchiveApp {
         let scale_factor_x = 8.5 / inches_unscaled_x;
         let scale_factor_y = 11.0 / inches_unscaled_y;
 
-        image.add_to_layer(current_layer.clone(), ImageTransform {
+        image.add_to_layer(current_layer, ImageTransform {
             translate_x: None,
             translate_y: None,
             rotate: None,
