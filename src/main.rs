@@ -1,11 +1,16 @@
-use std::{ffi::CString, sync::{Arc, Mutex}, thread::{JoinHandle, self}, path::PathBuf};
+extern crate printpdf;
+
+use std::{ffi::CString, sync::{Arc, Mutex}, thread::{JoinHandle, self}, path::PathBuf, fs::File, io::BufWriter};
 
 use eframe::{egui::{self, Response, Context, Sense}, epaint::{Color32, ColorImage, TextureHandle, Vec2}};
+use printpdf::{PdfDocument, Mm, ImageXObject, Px, ColorSpace, ColorBits, Image, ImageTransform};
 use sane_scan::{self, Sane, Device, DeviceHandle, DeviceOption, DeviceOptionValue, ValueType, OptionCapability, Frame};
 use tinyfiledialogs::{select_folder_dialog, MessageBoxIcon, message_box_ok};
 
 const DEFAULT_FILE_NAME: &str = "scan.pdf";
 const ERR_DIALOG_TITLE: &str = "Roboarchive Error";
+const LETTER_WIDTH_MM: f64 = 215.9;
+const LETTER_HEIGHT_MM: f64 = 279.4;
 
 fn main() {
     env_logger::init();
@@ -288,7 +293,39 @@ impl RoboarchiveApp {
     }
 
     fn write_pdf(&mut self) {
-        
+        let (doc, page1, layer1) = PdfDocument::new("PDF_Document_title", Mm(LETTER_WIDTH_MM), Mm(LETTER_HEIGHT_MM), "Layer 1");
+        let current_layer = doc.get_page(page1).get_layer(layer1);
+
+        let mut texture_mutex = self.scanned_images.lock().unwrap();
+        let image_data = texture_mutex[self.selected_page_indices[0]].as_mut().unwrap();
+
+        let image = Image::from(ImageXObject {
+            width: Px(image_data.texture_handle.size()[0]),
+            height: Px(image_data.texture_handle.size()[1]),
+            color_space: ColorSpace::Rgb,
+            bits_per_component: ColorBits::Bit8,
+            interpolate: true,
+            image_data: remove_after_every(image_data.pixels.clone(), 3),
+            image_filter: None,
+            clipping_bbox: None,
+        });
+
+        let inches_unscaled_x = image_data.texture_handle.size()[0] as f64 / 300.0;
+        let inches_unscaled_y = image_data.texture_handle.size()[1] as f64 / 300.0;
+
+        let scale_factor_x = 8.5 / inches_unscaled_x;
+        let scale_factor_y = 11.0 / inches_unscaled_y;
+
+        image.add_to_layer(current_layer.clone(), ImageTransform {
+            translate_x: None,
+            translate_y: None,
+            rotate: None,
+            scale_x: Some(scale_factor_x),
+            scale_y: Some(scale_factor_y),
+            dpi: None,
+        });
+
+        doc.save(&mut BufWriter::new(File::create("test_working.pdf").unwrap())).unwrap();
     }
 }
 
@@ -550,6 +587,17 @@ fn insert_after_every<T: Clone>(ts: Vec<T>, after: usize, elem: T) -> Vec<T> {
     result
 }
 
+fn remove_after_every<T: Clone>(ts: Vec<T>, after: usize) -> Vec<T> {
+    let mut result = Vec::new();
+    for (i, e) in ts.into_iter().enumerate() {
+        if (i + 1) % (after + 1) != 0 {
+            result.push(e);
+        }
+    }
+
+    result
+}
+
 fn repeat_all_elements<T: Clone>(ts: Vec<T>, repeated: usize) -> Vec<T> {
     let mut result = Vec::new();
     for e in ts.into_iter() {
@@ -624,7 +672,7 @@ impl TryFrom<&EditingDeviceOptionValue> for DeviceOptionValue {
         match opt_edit {
             EditingDeviceOptionValue::Bool(val) => Ok(Self::Int((*val).into())),
             EditingDeviceOptionValue::Int(val) => Ok(Self::Int(val.parse()?)),
-            EditingDeviceOptionValue::Fixed(val) => Ok(Self::Fixed(sane_float_to_fixed(val.parse()?))),
+            EditingDeviceOptionValue::Fixed(val) => Ok(Self::Fixed(float_to_sane_fixed(val.parse()?))),
             EditingDeviceOptionValue::String(val) => Ok(Self::String(string_to_cstring(val.clone()))),
             EditingDeviceOptionValue::Button => Ok(Self::Button),
             EditingDeviceOptionValue::Group => Ok(Self::Group),
@@ -651,7 +699,7 @@ fn sane_fixed_to_float(fixed: i32) -> f64 {
     ((1.0 * c as f64) / (2i32.pow(16)) as f64) * sign as f64
 }
 
-fn sane_float_to_fixed(fixed: f64) -> i32 {
+fn float_to_sane_fixed(fixed: f64) -> i32 {
     if fixed == -32768.0 {
         return i32::MIN;
     }
