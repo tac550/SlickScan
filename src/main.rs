@@ -302,7 +302,7 @@ impl RoboarchiveApp {
     }
 
     fn write_pdf(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        if self.selected_page_indices.len() == 0 {
+        if self.selected_page_indices.is_empty() {
             return Err("No pages selected".to_owned().into());
         }
 
