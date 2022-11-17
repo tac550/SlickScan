@@ -1,4 +1,4 @@
-use std::{ffi::CString, sync::{Arc, Mutex}, thread::{JoinHandle, self}, path::PathBuf, fs::File, io::BufWriter, error::Error};
+use std::{ffi::CString, sync::{Arc, Mutex}, thread::{JoinHandle, self}, path::PathBuf, fs::File, io::BufWriter};
 
 use eframe::{egui::{self, Response, Context, Sense}, epaint::{Color32, ColorImage, TextureHandle, Vec2}};
 use printpdf::{PdfDocument, Mm, ImageXObject, Px, ColorSpace, ColorBits, Image, ImageTransform};
@@ -301,44 +301,57 @@ impl RoboarchiveApp {
         }
     }
 
-    fn write_pdf(&mut self) -> Result<(), Box<dyn Error>> {
-        let (doc, page1, layer1) = PdfDocument::new("PDF_Document_title", Mm(LETTER_WIDTH_MM), Mm(LETTER_HEIGHT_MM), "Layer 1");
-        let current_layer = doc.get_page(page1).get_layer(layer1);
+    fn write_pdf(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        if self.selected_page_indices.len() == 0 {
+            return Err("No pages selected".to_owned().into());
+        }
 
-        let images_mutex = self.scanned_images.lock().unwrap();
-        let image_data = images_mutex.get(*self.selected_page_indices.get(0)
-            .ok_or("No pages selected")?)
-            .ok_or("Page index exceeded size of image vector")?;
+        if let Some(root_path) = &self.root_location {
+            let file_path = if self.file_save_path.trim().is_empty() { DEFAULT_FILE_NAME } else { &self.file_save_path };
+            let saving_path = root_path.join(file_path).with_extension("pdf");
 
-        let image = Image::from(ImageXObject {
-            width: Px(image_data.texture_handle.size()[0]),
-            height: Px(image_data.texture_handle.size()[1]),
-            color_space: ColorSpace::Rgb,
-            bits_per_component: ColorBits::Bit8,
-            interpolate: true,
-            image_data: remove_after_every(image_data.pixels.clone(), 3),
-            image_filter: None,
-            clipping_bbox: None,
-        });
+            let doc = PdfDocument::empty("");
 
-        let inches_unscaled_x = image_data.texture_handle.size()[0] as f64 / 300.0;
-        let inches_unscaled_y = image_data.texture_handle.size()[1] as f64 / 300.0;
+            for i in &self.selected_page_indices {
+                let (new_page, new_layer) = doc.add_page(Mm(LETTER_WIDTH_MM), Mm(LETTER_HEIGHT_MM), "Layer 1");
+                let current_layer = doc.get_page(new_page).get_layer(new_layer);
+    
+                let images_mutex = self.scanned_images.lock().unwrap();
+                let image_data = images_mutex.get(*i).ok_or("Page index exceeded size of image vector")?;
+    
+                let image = Image::from(ImageXObject {
+                    width: Px(image_data.texture_handle.size()[0]),
+                    height: Px(image_data.texture_handle.size()[1]),
+                    color_space: ColorSpace::Rgb,
+                    bits_per_component: ColorBits::Bit8,
+                    interpolate: true,
+                    image_data: remove_after_every(image_data.pixels.clone(), 3),
+                    image_filter: None,
+                    clipping_bbox: None,
+                });
+    
+                let inches_unscaled_x = image_data.texture_handle.size()[0] as f64 / 300.0;
+                let inches_unscaled_y = image_data.texture_handle.size()[1] as f64 / 300.0;
+    
+                let scale_factor_x = LETTER_WIDTH_IN / inches_unscaled_x;
+                let scale_factor_y = LETTER_HEIGHT_IN / inches_unscaled_y;
+    
+                image.add_to_layer(current_layer, ImageTransform {
+                    translate_x: None,
+                    translate_y: None,
+                    rotate: None,
+                    scale_x: Some(scale_factor_x),
+                    scale_y: Some(scale_factor_y),
+                    dpi: None,
+                });
+            }
 
-        let scale_factor_x = LETTER_WIDTH_IN / inches_unscaled_x;
-        let scale_factor_y = LETTER_HEIGHT_IN / inches_unscaled_y;
+            doc.save(&mut BufWriter::new(File::create(saving_path)?))?;
 
-        image.add_to_layer(current_layer, ImageTransform {
-            translate_x: None,
-            translate_y: None,
-            rotate: None,
-            scale_x: Some(scale_factor_x),
-            scale_y: Some(scale_factor_y),
-            dpi: None,
-        });
-
-        doc.save(&mut BufWriter::new(File::create("test_working.pdf")?))?;
-
-        Ok(())
+            Ok(())
+        } else {
+            Err("No root save location selected".to_owned().into())
+        }
     }
 }
 
