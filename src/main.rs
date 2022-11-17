@@ -425,7 +425,7 @@ impl eframe::App for RoboarchiveApp {
                 ui.add(egui::Slider::new(&mut self.image_max_x, 100.0..=500.0).text("Preview size"));
 
                 if ui.button("Select root save location...").clicked() {
-                    if let Some(path) = select_folder_dialog("Select root save location", "") {
+                    if let Some(path) = select_folder_dialog("Select root save location", self.root_location.as_ref().unwrap_or(&PathBuf::new()).to_str().unwrap_or("")) {
                         self.root_location = Some(PathBuf::from(path));
                     }
                 }
