@@ -3,7 +3,7 @@ use std::{ffi::CString, sync::{Arc, Mutex}, thread::{JoinHandle, self}, path::Pa
 use eframe::{egui::{self, Response, Context, Sense}, epaint::{Color32, ColorImage, TextureHandle, Vec2}};
 use printpdf::{PdfDocument, Mm, ImageXObject, Px, ColorSpace, ColorBits, Image, ImageTransform};
 use sane_scan::{self, Sane, Device, DeviceHandle, DeviceOption, DeviceOptionValue, ValueType, OptionCapability, Frame};
-use tinyfiledialogs::{select_folder_dialog, MessageBoxIcon, message_box_ok};
+use tinyfiledialogs::{select_folder_dialog, MessageBoxIcon, message_box_ok, message_box_yes_no, YesNo};
 
 const DEFAULT_FILE_NAME: &str = "scan.pdf";
 const ERR_DIALOG_TITLE: &str = "Roboarchive Error";
@@ -301,7 +301,7 @@ impl RoboarchiveApp {
         }
     }
 
-    fn write_pdf(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn write_pdf(&mut self) -> Result<SaveStatus, Box<dyn std::error::Error>> {
         if self.selected_page_indices.is_empty() {
             return Err("No pages selected".to_owned().into());
         }
@@ -309,6 +309,12 @@ impl RoboarchiveApp {
         if let Some(root_path) = &self.root_location {
             let file_path = if self.file_save_path.trim().is_empty() { DEFAULT_FILE_NAME } else { &self.file_save_path };
             let saving_path = root_path.join(file_path).with_extension("pdf");
+
+            if saving_path.exists() {
+                if let YesNo::No = message_box_yes_no("File exists", "A file with that name already exists. Overwrite?", MessageBoxIcon::Info, YesNo::No) {
+                    return Ok(SaveStatus::Cancelled);
+                }
+            }
 
             let doc = PdfDocument::empty("");
 
@@ -348,7 +354,7 @@ impl RoboarchiveApp {
 
             doc.save(&mut BufWriter::new(File::create(saving_path)?))?;
 
-            Ok(())
+            Ok(SaveStatus::Completed)
         } else {
             Err("No root save location selected".to_owned().into())
         }
@@ -416,7 +422,7 @@ impl eframe::App for RoboarchiveApp {
                 }
 
                 if let Some(path) = &self.root_location {
-                    ui.colored_label(Color32::GREEN, path.canonicalize().unwrap_or_default().to_string_lossy());
+                    ui.colored_label(Color32::GREEN, (*path.canonicalize().unwrap_or_default().to_string_lossy()).to_owned() + std::path::MAIN_SEPARATOR.to_string().as_str());
                 } else {
                     ui.colored_label(Color32::RED, "No save location selected");
                 }
@@ -427,11 +433,13 @@ impl eframe::App for RoboarchiveApp {
 
                 if let Some(field) = &self.path_field {
                     if field.lost_focus() && ctx.input().key_pressed(egui::Key::Enter) {
-                        if let Err(error) = self.write_pdf() {
-                            message_box_ok(ERR_DIALOG_TITLE, &format!("Error occurred while saving PDF file: {}", error), MessageBoxIcon::Warning)
-                        } else {
-                            self.mark_selection_saved();
-                            self.clear_selection();
+                        match self.write_pdf() {
+                            Ok(status) => if let SaveStatus::Completed = status {
+                                self.mark_selection_saved();
+                                self.clear_selection();
+                            },
+                            Err(error) =>
+                                message_box_ok(ERR_DIALOG_TITLE, &format!("Error occurred while saving PDF file: {}", error), MessageBoxIcon::Warning),
                         }
                     }
                 }
@@ -721,6 +729,11 @@ impl TryFrom<&EditingDeviceOptionValue> for DeviceOptionValue {
     }
 
     type Error = Box<dyn std::error::Error>;
+}
+
+enum SaveStatus {
+    Completed,
+    Cancelled,
 }
 
 fn sane_fixed_to_float(fixed: i32) -> f64 {
