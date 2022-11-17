@@ -1,4 +1,4 @@
-use std::{ffi::CString, sync::{Arc, Mutex}, thread::{JoinHandle, self}, path::PathBuf, fs::File, io::BufWriter};
+use std::{ffi::CString, sync::{Arc, Mutex}, thread::{JoinHandle, self}, path::PathBuf, fs::{File, self}, io::BufWriter};
 
 use eframe::{egui::{self, Response, Context, Sense}, epaint::{Color32, ColorImage, TextureHandle, Vec2}};
 use printpdf::{PdfDocument, Mm, ImageXObject, Px, ColorSpace, ColorBits, Image, ImageTransform};
@@ -310,8 +310,17 @@ impl RoboarchiveApp {
             let file_path = if self.file_save_path.trim().is_empty() { DEFAULT_FILE_NAME } else { &self.file_save_path };
             let saving_path = root_path.join(file_path).with_extension("pdf");
 
+            if let Some(p) = saving_path.parent() {
+                if !p.exists() {
+                    if let YesNo::No = message_box_yes_no("Create directory?", &format!("The location {} does not exist. Create it?", p.to_string_lossy()), MessageBoxIcon::Question, YesNo::Yes) {
+                        return Ok(SaveStatus::Cancelled);
+                    }
+                    fs::create_dir_all(p)?
+                }
+            };
+
             if saving_path.exists() {
-                if let YesNo::No = message_box_yes_no("File exists", "A file with that name already exists. Overwrite?", MessageBoxIcon::Info, YesNo::No) {
+                if let YesNo::No = message_box_yes_no("Overwrite file?", "A file with that name already exists. Overwrite?", MessageBoxIcon::Question, YesNo::No) {
                     return Ok(SaveStatus::Cancelled);
                 }
             }
