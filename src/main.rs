@@ -224,7 +224,7 @@ impl RoboarchiveApp {
                         },
                     };
 
-                    let pixels = match handle.lock().unwrap().handle.read_to_vec() {
+                    let scanned_pixels = match handle.lock().unwrap().handle.read_to_vec() {
                         Ok(image) => image,
                         Err(error) => {
                             message_box_ok(ERR_DIALOG_TITLE, &format!("Error reading image data: {}", error), MessageBoxIcon::Error);
@@ -238,13 +238,13 @@ impl RoboarchiveApp {
                     };
 
                     let pixels = match format {
-                        Frame::Rgb => pixels,
-                        _ => repeat_all_elements(pixels, 3),
+                        Frame::Rgb => scanned_pixels,
+                        _ => repeat_all_elements(scanned_pixels, 3),
                     };
 
-                    let pixels = insert_after_every(pixels, 3, 255);
+                    let pixels_with_alpha = insert_after_every(pixels.clone(), 3, 255);
 
-                    let image = ColorImage::from_rgba_unmultiplied([pixels_per_line, lines], &pixels);
+                    let image = ColorImage::from_rgba_unmultiplied([pixels_per_line, lines], &pixels_with_alpha);
 
                     let scanned_image = ScannedImage {
                         pixels,
@@ -332,21 +332,21 @@ impl RoboarchiveApp {
                 let current_layer = doc.get_page(new_page).get_layer(new_layer);
     
                 let images_mutex = self.scanned_images.lock().unwrap();
-                let image_data = images_mutex.get(*i).ok_or("Page index exceeded size of image vector")?;
+                let scanned_image = images_mutex.get(*i).ok_or("Page index exceeded size of image vector")?;
     
                 let image = Image::from(ImageXObject {
-                    width: Px(image_data.texture_handle.size()[0]),
-                    height: Px(image_data.texture_handle.size()[1]),
+                    width: Px(scanned_image.texture_handle.size()[0]),
+                    height: Px(scanned_image.texture_handle.size()[1]),
                     color_space: ColorSpace::Rgb,
                     bits_per_component: ColorBits::Bit8,
                     interpolate: true,
-                    image_data: remove_after_every(image_data.pixels.clone(), 3),
+                    image_data: scanned_image.pixels.clone(),
                     image_filter: None,
                     clipping_bbox: None,
                 });
     
-                let inches_unscaled_x = image_data.texture_handle.size()[0] as f64 / 300.0;
-                let inches_unscaled_y = image_data.texture_handle.size()[1] as f64 / 300.0;
+                let inches_unscaled_x = scanned_image.texture_handle.size()[0] as f64 / 300.0;
+                let inches_unscaled_y = scanned_image.texture_handle.size()[1] as f64 / 300.0;
     
                 let scale_factor_x = LETTER_WIDTH_IN / inches_unscaled_x;
                 let scale_factor_y = LETTER_HEIGHT_IN / inches_unscaled_y;
@@ -638,17 +638,6 @@ fn insert_after_every<T: Clone>(ts: Vec<T>, after: usize, elem: T) -> Vec<T> {
         result.push(e);
         if (i + 1) % after == 0 {
             result.push(elem.clone());
-        }
-    }
-
-    result
-}
-
-fn remove_after_every<T: Clone>(ts: Vec<T>, after: usize) -> Vec<T> {
-    let mut result = Vec::new();
-    for (i, e) in ts.into_iter().enumerate() {
-        if (i + 1) % (after + 1) != 0 {
-            result.push(e);
         }
     }
 
