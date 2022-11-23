@@ -213,31 +213,31 @@ impl RoboarchiveApp {
                 image_buf.lock().unwrap().clear();
 
                 loop {
-                    let (bytes_per_line, lines, format) = match handle.lock().unwrap().handle.get_parameters() {
-                        Ok(params) => (
-                            TryInto::<usize>::try_into(params.bytes_per_line).expect("Failed to convert `bytes_per_line` to unsigned"),
-                            TryInto::<usize>::try_into(params.lines).expect("Failed to convert `lines` to unsigned"),
-                            params.format),
+                    let scanned_pixels = match handle.lock().unwrap().handle.read_to_vec() {
+                        Ok(image) => image,
+                        Err(error) => {
+                            message_box_ok(ERR_DIALOG_TITLE, &format!("Error reading image data: {}", error), MessageBoxIcon::Error);
+                            return
+                        },
+                    };
+
+                    let parameters = match handle.lock().unwrap().handle.get_parameters() {
+                        Ok(params) => params,
                         Err(error) => {
                             message_box_ok(ERR_DIALOG_TITLE, &format!("Error retrieving scan parameters: {}", error), MessageBoxIcon::Error);
                             return
                         },
                     };
 
-                    let scanned_pixels = match handle.lock().unwrap().handle.read_to_vec() {
-                        Ok(image) => image,
-                        Err(error) => {
-                            message_box_ok(ERR_DIALOG_TITLE, &format!("Error reading image data: {}", error), MessageBoxIcon::Error);
-                            return;
-                        },
-                    };
+                    let bytes_per_line = TryInto::<usize>::try_into(parameters.bytes_per_line).expect("Failed to convert `bytes_per_line` to unsigned");
+                    let lines = scanned_pixels.len() / bytes_per_line;
 
-                    let pixels_per_line = match format {
+                    let pixels_per_line = match parameters.format {
                         Frame::Rgb => bytes_per_line / 3,
                         _ => bytes_per_line,
                     };
 
-                    let pixels = match format {
+                    let pixels = match parameters.format {
                         Frame::Rgb => scanned_pixels,
                         _ => repeat_all_elements(scanned_pixels, 3),
                     };
