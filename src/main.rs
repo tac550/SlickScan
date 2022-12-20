@@ -1,9 +1,12 @@
 use std::{ffi::CString, sync::{Arc, Mutex}, thread::{JoinHandle, self}, path::PathBuf, fs::{File, self}, io::BufWriter};
 
-use eframe::{egui::{self, Response, Context, Sense}, epaint::{Color32, ColorImage, TextureHandle, Vec2}};
+use commonvals::ValueCategory;
+use eframe::{egui::{self, Response, Context, Sense, CollapsingHeader}, epaint::{Color32, ColorImage, TextureHandle, Vec2}};
 use printpdf::{PdfDocument, Mm, ImageXObject, Px, ColorSpace, ColorBits, Image, ImageTransform};
 use sane_scan::{self, Sane, Device, DeviceHandle, DeviceOption, DeviceOptionValue, ValueType, OptionCapability, Frame};
 use tinyfiledialogs::{select_folder_dialog, MessageBoxIcon, message_box_ok, message_box_yes_no, YesNo};
+
+mod commonvals;
 
 const DEFAULT_FILE_NAME: &str = "scan.pdf";
 const ERR_DIALOG_TITLE: &str = "Roboarchive Error";
@@ -55,6 +58,7 @@ struct RoboarchiveApp {
     scan_running: bool,
     image_max_x: f32,
     selecting_page: usize,
+    show_common_values: bool,
 
     scanned_images: Arc<Mutex<Vec<ScannedImage>>>,
     selected_page_indices: Vec<usize>,
@@ -87,6 +91,7 @@ impl RoboarchiveApp {
             scan_running: Default::default(),
             image_max_x: 200.0,
             selecting_page: Default::default(),
+            show_common_values: Default::default(),
             scanned_images: Default::default(),
             selected_page_indices: Default::default(),
             show_saved_images: Default::default(),
@@ -120,6 +125,7 @@ impl RoboarchiveApp {
         // Open new scanner, updating previous field and closing configuration panel
         self.prev_selected_scanner = Some(self.selected_scanner);
         self.show_config = false;
+        self.show_common_values = false;
 
         if let Some(device) = self.scanner_list.get(self.selected_scanner) {
             self.selected_handle = match device.open() {
@@ -505,10 +511,15 @@ impl eframe::App for RoboarchiveApp {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.button("Close").clicked() {
                             self.show_config = false;
+                            self.show_common_values = false;
                         }
 
                         if ui.button("Apply").clicked() {
                             self.apply_config_changes();
+                        }
+
+                        if ui.button("Common numerical values...").clicked() {
+                            self.show_common_values = !self.show_common_values;
                         }
                     });
                 });
@@ -539,6 +550,24 @@ impl eframe::App for RoboarchiveApp {
                             }
                         });
                     });
+                });
+            });
+        }
+        if self.show_common_values {
+            egui::Window::new("Common Values").default_size([400.0, 300.0]).show(ctx, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    for category in [ValueCategory::LetterUS, ValueCategory::A4] {
+                        CollapsingHeader::new(category.as_str()).default_open(true).show(ui, |ui| {
+                            egui::Grid::new(category.as_str()).striped(true).show(ui, |ui| {
+                                for value in category.get_values() {
+                                    ui.label(value.name).on_hover_text(value.description);
+                                    if ui.button("Copy").clicked() {
+                                        ui.output().copied_text = value.value.to_owned();
+                                    }
+                                }
+                            });
+                        });
+                    }
                 });
             });
         }
