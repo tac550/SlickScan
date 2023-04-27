@@ -777,7 +777,7 @@ fn sane_fixed_to_float(fixed: i32) -> f64 {
         sign = -1;
     }
 
-    ((1.0 * c as f64) / (2i32.pow(16)) as f64) * sign as f64
+    ((1.0 * f64::from(c)) / f64::from(2i32.pow(16))) * f64::from(sign)
 }
 
 fn float_to_sane_fixed(fixed: f64) -> i32 {
@@ -785,7 +785,7 @@ fn float_to_sane_fixed(fixed: f64) -> i32 {
         return i32::MIN;
     }
 
-    let a = fixed * 2i32.pow(16) as f64;
+    let a = fixed * f64::from(2i32.pow(16));
     let mut b = a.round() as i32;
 
     if a < 0.0 {
