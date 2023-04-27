@@ -168,7 +168,7 @@ impl RoboarchiveApp {
 
     fn apply_config_changes(&mut self) {
         if let Some(handle) = &self.selected_handle {
-            for option in self.config_options.iter_mut() {
+            for option in &mut self.config_options {
                 if !option.is_edited {
                     continue;
                 }
@@ -527,7 +527,7 @@ impl eframe::App for RoboarchiveApp {
                 egui::CentralPanel::default().show_inside(ui, |ui| {
                     egui::ScrollArea::both().show(ui, |ui| {
                         egui::Grid::new("device_config").striped(true).max_col_width(160.0).show(ui, |ui| {
-                            for option in self.config_options.iter_mut() {
+                            for option in &mut self.config_options {
 
                                 if let ValueType::Group = option.base_option.type_ {
                                     // Group titles get a special label and no controls (column 1)
@@ -675,7 +675,7 @@ fn insert_after_every<T: Clone>(ts: Vec<T>, after: usize, elem: T) -> Vec<T> {
 
 fn repeat_all_elements<T: Clone>(ts: Vec<T>, repeated: usize) -> Vec<T> {
     let mut result = Vec::new();
-    for e in ts.into_iter() {
+    for e in ts {
         for _ in 0..repeated {
             result.push(e.clone());
         }
