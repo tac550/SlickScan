@@ -31,7 +31,7 @@ fn main() {
         Ok(sane_instance) => eframe::run_native(
             "Roboarchive",
             options,
-            Box::new(|cc| Box::new(RoboarchiveApp::new(cc, sane_instance)))),
+            Box::new(|cc| Box::new(RoboarchiveApp::new(cc, sane_instance)))).unwrap(),
         Err(error) => message_box_ok(ERR_DIALOG_TITLE, &format!("Error occurred while setting up SANE scanner interface: {}", error), MessageBoxIcon::Error),
     }
 }
@@ -254,7 +254,7 @@ impl RoboarchiveApp {
 
                     let scanned_image = ScannedImage {
                         pixels,
-                        texture_handle: ctx.lock().unwrap().load_texture(queue_index.to_string(), image, egui::TextureFilter::Linear),
+                        texture_handle: ctx.lock().unwrap().load_texture(queue_index.to_string(), image, egui::TextureOptions::LINEAR),
                         selected_as_page: None,
                         saved_to_file: false,
                     };
@@ -379,7 +379,7 @@ impl RoboarchiveApp {
 impl eframe::App for RoboarchiveApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
 
-        if ctx.input().key_pressed(egui::Key::Escape) {
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.clear_selection();
         }
 
@@ -447,7 +447,7 @@ impl eframe::App for RoboarchiveApp {
                 self.path_field = Some(ui.add(egui::TextEdit::singleline(&mut self.file_save_path).hint_text(DEFAULT_FILE_NAME).cursor_at_end(false)));
 
                 if let Some(field) = &self.path_field {
-                    if field.lost_focus() && ctx.input().key_pressed(egui::Key::Enter) {
+                    if field.lost_focus() && ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
                         match self.write_pdf() {
                             Ok(status) => if let SaveStatus::Completed = status {
                                 self.mark_selection_saved();
@@ -562,7 +562,7 @@ impl eframe::App for RoboarchiveApp {
                                 for value in category.get_values() {
                                     ui.label(value.name).on_hover_text(value.description);
                                     if ui.button("Copy").clicked() {
-                                        ui.output().copied_text = value.value.to_owned();
+                                        ui.output_mut(|o| o.copied_text = value.value.to_owned());
                                     }
                                 }
                             });
