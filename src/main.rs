@@ -32,7 +32,7 @@ fn main() {
             "Roboarchive",
             options,
             Box::new(|cc| Box::new(RoboarchiveApp::new(cc, sane_instance)))).unwrap(),
-        Err(error) => message_box_ok(ERR_DIALOG_TITLE, &format!("Error occurred while setting up SANE scanner interface: {}", error), MessageBoxIcon::Error),
+        Err(error) => message_box_ok(ERR_DIALOG_TITLE, &format!("Error occurred while setting up SANE scanner interface: {error}"), MessageBoxIcon::Error),
     }
 }
 
@@ -107,7 +107,7 @@ impl RoboarchiveApp {
         self.scanner_list = match self.sane_instance.get_devices(!self.search_network) {
             Ok(devices) => devices,
             Err(error) => {
-                message_box_ok(ERR_DIALOG_TITLE, &format!("Error refreshing device list: {}", error), MessageBoxIcon::Warning);
+                message_box_ok(ERR_DIALOG_TITLE, &format!("Error refreshing device list: {error}"), MessageBoxIcon::Warning);
                 vec![]
             },
         };
@@ -131,7 +131,7 @@ impl RoboarchiveApp {
             self.selected_handle = match device.open() {
                 Ok(handle) => Some(Arc::new(Mutex::new(ThDeviceHandle { handle }))),
                 Err(error) => {
-                    message_box_ok(ERR_DIALOG_TITLE, &format!("Failed to open device: {}", error), MessageBoxIcon::Error);
+                    message_box_ok(ERR_DIALOG_TITLE, &format!("Failed to open device: {error}"), MessageBoxIcon::Error);
                     None
                 },
             };
@@ -145,7 +145,7 @@ impl RoboarchiveApp {
             let device_options = match handle.lock().unwrap().handle.get_options() {
                 Ok(options) => options,
                 Err(error) => {
-                    message_box_ok(ERR_DIALOG_TITLE, &format!("Failed to retrieve options: {}", error), MessageBoxIcon::Warning);
+                    message_box_ok(ERR_DIALOG_TITLE, &format!("Failed to retrieve options: {error}"), MessageBoxIcon::Warning);
                     vec![]
                 },
             };
@@ -175,11 +175,11 @@ impl RoboarchiveApp {
 
                 if let EditingDeviceOptionValue::Button = option.editing_value {
                     if let Err(error) = handle.lock().unwrap().handle.set_option_auto(&option.base_option) {
-                        message_box_ok(ERR_DIALOG_TITLE, &format!("Error applying configuration: {}", error), MessageBoxIcon::Error);
+                        message_box_ok(ERR_DIALOG_TITLE, &format!("Error applying configuration: {error}"), MessageBoxIcon::Error);
                     }
                 } else if let Ok(opt_val) = TryInto::<DeviceOptionValue>::try_into(&option.editing_value) {
                     if let Err(error) = handle.lock().unwrap().handle.set_option(&option.base_option, opt_val) {
-                        message_box_ok(ERR_DIALOG_TITLE, &format!("Error applying configuration: {}", error), MessageBoxIcon::Error);
+                        message_box_ok(ERR_DIALOG_TITLE, &format!("Error applying configuration: {error}"), MessageBoxIcon::Error);
                     }
                 } else {
                     message_box_ok(ERR_DIALOG_TITLE, "Error converting from editor value", MessageBoxIcon::Error);
@@ -196,7 +196,7 @@ impl RoboarchiveApp {
         if let Some(handle) = self.selected_handle.as_mut() {
             self.scan_running = true;
             if let Err(error) = handle.lock().unwrap().handle.start_scan() {
-                message_box_ok(ERR_DIALOG_TITLE, &format!("Error occurred while initiating scan: {}", error), MessageBoxIcon::Error);
+                message_box_ok(ERR_DIALOG_TITLE, &format!("Error occurred while initiating scan: {error}"), MessageBoxIcon::Error);
                 self.scan_running = false;
                 return;
             }
@@ -222,7 +222,7 @@ impl RoboarchiveApp {
                     let scanned_pixels = match handle.lock().unwrap().handle.read_to_vec() {
                         Ok(image) => image,
                         Err(error) => {
-                            message_box_ok(ERR_DIALOG_TITLE, &format!("Error reading image data: {}", error), MessageBoxIcon::Error);
+                            message_box_ok(ERR_DIALOG_TITLE, &format!("Error reading image data: {error}"), MessageBoxIcon::Error);
                             return
                         },
                     };
@@ -230,7 +230,7 @@ impl RoboarchiveApp {
                     let parameters = match handle.lock().unwrap().handle.get_parameters() {
                         Ok(params) => params,
                         Err(error) => {
-                            message_box_ok(ERR_DIALOG_TITLE, &format!("Error retrieving scan parameters: {}", error), MessageBoxIcon::Error);
+                            message_box_ok(ERR_DIALOG_TITLE, &format!("Error retrieving scan parameters: {error}"), MessageBoxIcon::Error);
                             return
                         },
                     };
@@ -276,7 +276,7 @@ impl RoboarchiveApp {
         if let Some(handle) = self.scan_thread_handle.take() {
             if let Err(error) = handle.join() {
                 message_box_ok(ERR_DIALOG_TITLE, "Error occurred while stopping scan (see console for details)", MessageBoxIcon::Error);
-                println!("Error occurred while stopping scan: {:?}", error);
+                println!("Error occurred while stopping scan: {error:?}");
             }
         }
     }
@@ -454,7 +454,7 @@ impl eframe::App for RoboarchiveApp {
                                 self.clear_selection();
                             },
                             Err(error) =>
-                                message_box_ok(ERR_DIALOG_TITLE, &format!("Error occurred while saving PDF file: {}", error), MessageBoxIcon::Warning),
+                                message_box_ok(ERR_DIALOG_TITLE, &format!("Error occurred while saving PDF file: {error}"), MessageBoxIcon::Warning),
                         }
                     }
                 }
@@ -575,7 +575,7 @@ impl eframe::App for RoboarchiveApp {
 }
 
 fn cstring_to_string(cstring: &CString, data_type: &str) -> String {
-    cstring.clone().into_string().unwrap_or(format!("Error reading {}!", data_type))
+    cstring.clone().into_string().unwrap_or(format!("Error reading {data_type}!"))
 }
 
 fn string_to_cstring(string: String) -> CString {
