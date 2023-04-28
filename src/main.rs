@@ -589,7 +589,7 @@ fn render_device_option_controls(ui: &mut egui::Ui, option: &mut EditingDeviceOp
     }
 
     match &mut option.editing_value {
-        EditingDeviceOptionValue::Bool(val) => option_edited_if_changed(ui.checkbox(val, ""), option),
+        EditingDeviceOptionValue::Bool(val) => option_edited_if_changed(&ui.checkbox(val, ""), option),
         EditingDeviceOptionValue::Int(val) => {
             match &option.base_option.constraint {
                 sane_scan::OptionConstraint::WordList(list) => {
@@ -603,9 +603,9 @@ fn render_device_option_controls(ui: &mut egui::Ui, option: &mut EditingDeviceOp
                 },
                 sane_scan::OptionConstraint::Range { range, quant } => {
                     ui.colored_label(Color32::GOLD, format!("(Range: {} – {}, step: {})", range.start, range.end, quant));
-                    option_edited_if_changed(ui.text_edit_singleline( val), option);
+                    option_edited_if_changed(&ui.text_edit_singleline( val), option);
                 },
-                _ => option_edited_if_changed(ui.text_edit_singleline( val), option),
+                _ => option_edited_if_changed(&ui.text_edit_singleline( val), option),
             }
         },
         EditingDeviceOptionValue::Fixed(val) => {
@@ -613,9 +613,9 @@ fn render_device_option_controls(ui: &mut egui::Ui, option: &mut EditingDeviceOp
                 sane_scan::OptionConstraint::Range { range, quant } => {
                     ui.colored_label(Color32::GOLD, format!("(Range: {} – {}, step: {})",
                         sane_fixed_to_float(range.start), sane_fixed_to_float(range.end), sane_fixed_to_float(*quant)));
-                    option_edited_if_changed(ui.text_edit_singleline(val), option);
+                    option_edited_if_changed(&ui.text_edit_singleline(val), option);
                 },
-                _ => option_edited_if_changed(ui.text_edit_singleline(val), option),
+                _ => option_edited_if_changed(&ui.text_edit_singleline(val), option),
             }
         },
         EditingDeviceOptionValue::String(val) => {
@@ -630,7 +630,7 @@ fn render_device_option_controls(ui: &mut egui::Ui, option: &mut EditingDeviceOp
                         option.is_edited = true;
                     }
                 },
-                _ => option_edited_if_changed(ui.text_edit_singleline(val), option),
+                _ => option_edited_if_changed(&ui.text_edit_singleline(val), option),
             }
         },
         EditingDeviceOptionValue::Button => {
@@ -651,7 +651,7 @@ fn render_device_option_controls(ui: &mut egui::Ui, option: &mut EditingDeviceOp
     });
 }
 
-fn option_edited_if_changed(response: Response, option: &mut EditingDeviceOption) {
+fn option_edited_if_changed(response: &Response, option: &mut EditingDeviceOption) {
     if response.changed() {
         option.is_edited = true;
     }
