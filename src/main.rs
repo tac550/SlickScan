@@ -321,7 +321,7 @@ impl RoboarchiveApp {
                     if let YesNo::No = message_box_yes_no("Create directory?", &format!("The location {} does not exist. Create it?", p.to_string_lossy()), MessageBoxIcon::Question, YesNo::Yes) {
                         return Ok(SaveStatus::Cancelled);
                     }
-                    fs::create_dir_all(p)?
+                    fs::create_dir_all(p)?;
                 }
             };
 
