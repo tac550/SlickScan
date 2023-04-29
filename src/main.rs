@@ -479,15 +479,12 @@ impl eframe::App for RoboarchiveApp {
                             .sense(Sense::click()))
                                 .on_hover_text_at_pointer(if let Some(page) = image.selected_as_page {format!("Page {}", page+1)} else {format!("Selecting page {}...", self.selecting_page+1)})
                                 .clicked() {
-                                    match image.selected_as_page {
-                                        Some(idx) => {
-                                            clearing_from_index = Some(idx);
-                                        },
-                                        None => {
-                                            self.selected_page_indices.push(i);
-                                            image.selected_as_page = Some(self.selecting_page);
-                                            self.selecting_page += 1;    
-                                        },
+                                    if let Some(idx) = image.selected_as_page {
+                                        clearing_from_index = Some(idx);
+                                    } else {
+                                        self.selected_page_indices.push(i);
+                                        image.selected_as_page = Some(self.selecting_page);
+                                        self.selecting_page += 1;    
                                     }
                                     
                                     if let Some(resp) = &self.path_field {
