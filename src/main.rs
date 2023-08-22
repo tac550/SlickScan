@@ -42,6 +42,18 @@ struct ThDeviceHandle {
 
 unsafe impl Send for ThDeviceHandle {}
 
+#[derive(Default)]
+struct DialogStatus {
+    config: bool,
+    common_vals: bool
+}
+
+#[derive(PartialEq)]
+enum ScanStatus {
+    Stopped,
+    Running,
+}
+
 struct RoboarchiveApp {
     // SANE backend objects
     scanner_list: Vec<Device>,
@@ -54,11 +66,10 @@ struct RoboarchiveApp {
     // UI state controls
     ui_context: Arc<Mutex<Context>>,
     search_network: bool,
-    show_config: bool,
-    scan_running: bool,
+    scan_status: ScanStatus,
     image_max_x: f32,
     selecting_page: usize,
-    show_common_values: bool,
+    dialog_status: DialogStatus,
 
     scanned_images: Arc<Mutex<Vec<ScannedImage>>>,
     selected_page_indices: Vec<usize>,
@@ -87,11 +98,10 @@ impl RoboarchiveApp {
             sane_instance,
             ui_context: Arc::new(Mutex::new(cc.egui_ctx.clone())),
             search_network: Default::default(),
-            show_config: Default::default(),
-            scan_running: Default::default(),
+            scan_status: ScanStatus::Stopped,
             image_max_x: 200.0,
             selecting_page: Default::default(),
-            show_common_values: Default::default(),
+            dialog_status: DialogStatus::default(),
             scanned_images: Arc::default(),
             selected_page_indices: Vec::default(),
             show_saved_images: Default::default(),
@@ -124,8 +134,8 @@ impl RoboarchiveApp {
 
         // Open new scanner, updating previous field and closing configuration panel
         self.prev_selected_scanner = Some(self.selected_scanner);
-        self.show_config = false;
-        self.show_common_values = false;
+        self.dialog_status.config = false;
+        self.dialog_status.common_vals = false;
 
         if let Some(device) = self.scanner_list.get(self.selected_scanner) {
             self.selected_handle = match device.open() {
@@ -194,10 +204,10 @@ impl RoboarchiveApp {
 
     fn start_scan(&mut self) {
         if let Some(handle) = self.selected_handle.as_mut() {
-            self.scan_running = true;
+            self.scan_status = ScanStatus::Running;
             if let Err(error) = handle.lock().unwrap().handle.start_scan() {
                 message_box_ok(ERR_DIALOG_TITLE, &format!("Error occurred while initiating scan: {error}"), MessageBoxIcon::Error);
-                self.scan_running = false;
+                self.scan_status = ScanStatus::Stopped;
                 return;
             }
 
@@ -283,7 +293,7 @@ impl RoboarchiveApp {
 
     fn cancel_scan(&mut self) {
         self.stop_reading_thread();
-        self.scan_running = false;
+        self.scan_status = ScanStatus::Stopped;
     }
 
     fn clear_selection_from(&mut self, index: usize) {
@@ -406,9 +416,9 @@ impl eframe::App for RoboarchiveApp {
                     };
                 });
 
-                ui.add_enabled_ui(self.selected_handle.is_some() && !self.scan_running, |ui| {
+                ui.add_enabled_ui(self.selected_handle.is_some() && self.scan_status == ScanStatus::Stopped, |ui| {
                     if ui.button("Configure scanner...").clicked() {
-                        self.show_config = true;
+                        self.dialog_status.config = true;
 
                         self.load_device_options();
                     }
@@ -418,7 +428,7 @@ impl eframe::App for RoboarchiveApp {
                     }
                 });
 
-                ui.add_enabled_ui(self.selected_handle.is_some() && self.scan_running, |ui| {
+                ui.add_enabled_ui(self.selected_handle.is_some() && self.scan_status == ScanStatus::Running, |ui| {
                     if ui.button("Cancel scan").clicked() {
                         self.cancel_scan();
                     }
@@ -500,15 +510,15 @@ impl eframe::App for RoboarchiveApp {
             self.clear_selection_from(idx);
         }
 
-        if self.show_config {
+        if self.dialog_status.config {
             egui::Window::new("Scanner Configuration").default_size([680.0, 500.0]).show(ctx, |ui| {
                 egui::TopBottomPanel::bottom("close_panel")
                 .resizable(false)
                 .show_inside(ui, |ui| {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.button("Close").clicked() {
-                            self.show_config = false;
-                            self.show_common_values = false;
+                            self.dialog_status.config = false;
+                            self.dialog_status.common_vals = false;
                         }
 
                         if ui.button("Apply").clicked() {
@@ -516,7 +526,7 @@ impl eframe::App for RoboarchiveApp {
                         }
 
                         if ui.button("Common numerical values...").clicked() {
-                            self.show_common_values = !self.show_common_values;
+                            self.dialog_status.common_vals = !self.dialog_status.common_vals;
                         }
                     });
                 });
@@ -550,7 +560,7 @@ impl eframe::App for RoboarchiveApp {
                 });
             });
         }
-        if self.show_common_values {
+        if self.dialog_status.common_vals {
             egui::Window::new("Common Values").default_size([400.0, 300.0]).show(ctx, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     for category in [ValueCategory::LetterUS, ValueCategory::A4] {
