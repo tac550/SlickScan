@@ -79,11 +79,11 @@ struct RoboarchiveApp {
 impl RoboarchiveApp {
     fn new(cc: &eframe::CreationContext<'_>, sane_instance: Sane) -> Self {
         Self {
-            scanner_list: Default::default(),
+            scanner_list: Vec::default(),
             selected_scanner: Default::default(),
-            prev_selected_scanner: Default::default(),
-            selected_handle: Default::default(),
-            config_options: Default::default(),
+            prev_selected_scanner: Option::default(),
+            selected_handle: Option::default(),
+            config_options: Vec::default(),
             sane_instance,
             ui_context: Arc::new(Mutex::new(cc.egui_ctx.clone())),
             search_network: Default::default(),
@@ -92,14 +92,14 @@ impl RoboarchiveApp {
             image_max_x: 200.0,
             selecting_page: Default::default(),
             show_common_values: Default::default(),
-            scanned_images: Default::default(),
-            selected_page_indices: Default::default(),
+            scanned_images: Arc::default(),
+            selected_page_indices: Vec::default(),
             show_saved_images: Default::default(),
-            path_field: Default::default(),
-            scan_thread_handle: Default::default(),
-            scan_cancelled: Default::default(),
-            root_location: Default::default(),
-            file_save_path: Default::default(),
+            path_field: Option::default(),
+            scan_thread_handle: Option::default(),
+            scan_cancelled: Arc::default(),
+            root_location: Option::default(),
+            file_save_path: String::default(),
         }
     }
 
