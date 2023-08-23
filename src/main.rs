@@ -384,15 +384,8 @@ impl RoboarchiveApp {
             Err("No root save location selected".to_owned().into())
         }
     }
-}
 
-impl eframe::App for RoboarchiveApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-
-        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-            self.clear_selection();
-        }
-
+    fn draw_top_panel(&mut self, ctx: &Context) {
         egui::TopBottomPanel::top("MainUI-TopPanel").show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
                 if ui.button("↻").on_hover_text_at_pointer("Refresh the device list").clicked() {
@@ -435,7 +428,9 @@ impl eframe::App for RoboarchiveApp {
                 })
             });
         });
+    }
 
+    fn draw_bottom_panel(&mut self, ctx: &Context) {
         egui::TopBottomPanel::bottom("MainUI-BottomPanel").show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.add(egui::Slider::new(&mut self.image_max_x, 100.0..=500.0).text("Preview size"));
@@ -473,7 +468,9 @@ impl eframe::App for RoboarchiveApp {
                     .on_hover_text("Show scanned images even after they are saved to a file (selecting reveals previously-saved images)");
             });
         });
+    }
 
+    fn draw_center_panel(&mut self, ctx: &Context) {
         let mut clearing_from_index: Option<usize> = None;
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -483,7 +480,7 @@ impl eframe::App for RoboarchiveApp {
                         if image.saved_to_file && !self.show_saved_images {
                             continue;
                         }
-                        
+                
                         if ui.add(egui::Image::new(&image.texture_handle, scale_image_size(image.texture_handle.size_vec2(), self.image_max_x))
                             .tint(if let Some(n) = image.selected_as_page {selection_tint_color(n)} else {Color32::WHITE})
                             .sense(Sense::click()))
@@ -496,7 +493,7 @@ impl eframe::App for RoboarchiveApp {
                                         image.selected_as_page = Some(self.selecting_page);
                                         self.selecting_page += 1;    
                                     }
-                                    
+                            
                                     if let Some(resp) = &self.path_field {
                                         resp.request_focus();
                                     }
@@ -509,74 +506,97 @@ impl eframe::App for RoboarchiveApp {
         if let Some(idx) = clearing_from_index {
             self.clear_selection_from(idx);
         }
+    }
 
-        if self.dialog_status.config {
-            egui::Window::new("Scanner Configuration").default_size([680.0, 500.0]).show(ctx, |ui| {
-                egui::TopBottomPanel::bottom("close_panel")
-                .resizable(false)
-                .show_inside(ui, |ui| {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button("Close").clicked() {
-                            self.dialog_status.config = false;
-                            self.dialog_status.common_vals = false;
-                        }
+    fn show_config_window(&mut self, ctx: &Context) {
+        egui::Window::new("Scanner Configuration").default_size([680.0, 500.0]).show(ctx, |ui| {
+            egui::TopBottomPanel::bottom("close_panel")
+            .resizable(false)
+            .show_inside(ui, |ui| {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button("Close").clicked() {
+                        self.dialog_status.config = false;
+                        self.dialog_status.common_vals = false;
+                    }
 
-                        if ui.button("Apply").clicked() {
-                            self.apply_config_changes();
-                        }
+                    if ui.button("Apply").clicked() {
+                        self.apply_config_changes();
+                    }
 
-                        if ui.button("Common numerical values...").clicked() {
-                            self.dialog_status.common_vals = !self.dialog_status.common_vals;
-                        }
-                    });
-                });
-
-                egui::CentralPanel::default().show_inside(ui, |ui| {
-                    egui::ScrollArea::both().show(ui, |ui| {
-                        egui::Grid::new("device_config").striped(true).max_col_width(160.0).show(ui, |ui| {
-                            for option in &mut self.config_options {
-
-                                if let ValueType::Group = option.base_option.type_ {
-                                    // Group titles get a special label and no controls (column 1)
-                                    ui.colored_label(Color32::LIGHT_BLUE,
-                                        cstring_to_string(&option.base_option.title, "group title"));
-                                } else {
-                                    // Draw the option item's label (column 1)
-                                    let option_title = cstring_to_string(&option.base_option.title, "option title");
-                                    ui.label(option_title).on_hover_text(cstring_to_string(&option.base_option.desc, "option description"));
-                                }
-
-                                // Draw the option value controls (column 2)
-                                ui.add_enabled_ui(option.base_option.cap.contains(OptionCapability::SOFT_SELECT), |ui| {
-                                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                                        render_device_option_controls(ui, option);
-                                    }).response.on_disabled_hover_text("This option cannot be changed in software — look on the hardware device to adjust.");
-                                });
-
-                                ui.end_row();
-                            }
-                        });
-                    });
-                });
-            });
-        }
-        if self.dialog_status.common_vals {
-            egui::Window::new("Common Values").default_size([400.0, 300.0]).show(ctx, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    for category in [ValueCategory::LetterUS, ValueCategory::A4] {
-                        CollapsingHeader::new(category.as_str()).default_open(true).show(ui, |ui| {
-                            egui::Grid::new(category.as_str()).striped(true).show(ui, |ui| {
-                                for value in category.get_values() {
-                                    ui.label(value.name).on_hover_text(value.description);
-                                    if ui.button("Copy").clicked() {
-                                        ui.output_mut(|o| o.copied_text = value.value.to_owned());
-                                    }
-                                }
-                            });
-                        });
+                    if ui.button("Common numerical values...").clicked() {
+                        self.dialog_status.common_vals = !self.dialog_status.common_vals;
                     }
                 });
             });
+
+            egui::CentralPanel::default().show_inside(ui, |ui| {
+                egui::ScrollArea::both().show(ui, |ui| {
+                    egui::Grid::new("device_config").striped(true).max_col_width(160.0).show(ui, |ui| {
+                        for option in &mut self.config_options {
+
+                            if let ValueType::Group = option.base_option.type_ {
+                                // Group titles get a special label and no controls (column 1)
+                                ui.colored_label(Color32::LIGHT_BLUE,
+                                    cstring_to_string(&option.base_option.title, "group title"));
+                            } else {
+                                // Draw the option item's label (column 1)
+                                let option_title = cstring_to_string(&option.base_option.title, "option title");
+                                ui.label(option_title).on_hover_text(cstring_to_string(&option.base_option.desc, "option description"));
+                            }
+
+                            // Draw the option value controls (column 2)
+                            ui.add_enabled_ui(option.base_option.cap.contains(OptionCapability::SOFT_SELECT), |ui| {
+                                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                    render_device_option_controls(ui, option);
+                                }).response.on_disabled_hover_text("This option cannot be changed in software — look on the hardware device to adjust.");
+                            });
+
+                            ui.end_row();
+                        }
+                    });
+                });
+            });
+        });
+    }
+
+    fn show_values_window(ctx: &Context) {
+        egui::Window::new("Common Values").default_size([400.0, 300.0]).show(ctx, |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                for category in [ValueCategory::LetterUS, ValueCategory::A4] {
+                    CollapsingHeader::new(category.as_str()).default_open(true).show(ui, |ui| {
+                        egui::Grid::new(category.as_str()).striped(true).show(ui, |ui| {
+                            for value in category.get_values() {
+                                ui.label(value.name).on_hover_text(value.description);
+                                if ui.button("Copy").clicked() {
+                                    ui.output_mut(|o| o.copied_text = value.value.to_owned());
+                                }
+                            }
+                        });
+                    });
+                }
+            });
+        });
+    }
+}
+
+impl eframe::App for RoboarchiveApp {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.clear_selection();
+        }
+
+        self.draw_top_panel(ctx);
+
+        self.draw_bottom_panel(ctx);
+
+        self.draw_center_panel(ctx);
+
+        if self.dialog_status.config {
+            self.show_config_window(ctx);
+        }
+        if self.dialog_status.common_vals {
+            RoboarchiveApp::show_values_window(ctx);
         }
     }
 }
