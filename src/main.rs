@@ -361,7 +361,9 @@ impl RoboarchiveApp {
                     clipping_bbox: None,
                 });
     
+                #[allow(clippy::cast_precision_loss)]
                 let inches_unscaled_x = scanned_image.texture_handle.size()[0] as f64 / 300.0;
+                #[allow(clippy::cast_precision_loss)]
                 let inches_unscaled_y = scanned_image.texture_handle.size()[1] as f64 / 300.0;
     
                 let scale_factor_x = LETTER_WIDTH_IN / inches_unscaled_x;
