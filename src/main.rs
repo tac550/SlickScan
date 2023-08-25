@@ -793,7 +793,7 @@ enum SaveStatus {
 }
 
 fn sane_fixed_to_float(fixed: i32) -> f64 {
-    if fixed == std::i32::MIN {
+    if fixed == i32::MIN {
         return -32768.0;
     }
     
@@ -810,11 +810,12 @@ fn sane_fixed_to_float(fixed: i32) -> f64 {
 }
 
 fn float_to_sane_fixed(float: f64) -> i32 {
-    if float == -32768.0 {
+    if float <= -32768.0 {
         return i32::MIN;
     }
 
     let a = float * f64::from(2i32.pow(16));
+    #[allow(clippy::cast_possible_truncation)]
     let mut b = a.round() as i32;
 
     if a < 0.0 {
