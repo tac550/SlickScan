@@ -686,8 +686,7 @@ fn option_edited_if_changed(response: &Response, option: &mut EditingDeviceOptio
 
 fn selection_tint_color(page_i: usize) -> Color32 {
     #[allow(clippy::cast_possible_truncation)]
-    let page_i = page_i as u8;
-    Color32::from_rgba_premultiplied(255 - ((page_i+1) * 50), 255 - ((page_i+1) * 50), 255, 50)
+    Color32::from_rgba_premultiplied(255 - ((page_i+1) * 50) as u8, 255 - ((page_i+1) * 50) as u8, 255, 50)
 }
 
 fn insert_after_every<T: Clone>(ts: Vec<T>, after: usize, elem: T) -> Vec<T> {
