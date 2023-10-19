@@ -26,4 +26,4 @@ On Ubuntu: `sudo apt install libclang-dev libsane-dev libxcb-render0-dev libxcb-
 The program may be tested without a physical scanner using the built-in test backends that come with SANE.
 To enable these backends, you must uncomment the `test` line in the file `/etc/sane.d/dll.conf`
 
-For debugging, run with `RUST_LOG=debug cargo run` or similar.
+To show log output, run with `RUST_LOG=debug cargo run` or similar.
