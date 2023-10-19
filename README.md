@@ -27,3 +27,7 @@ The program may be tested without a physical scanner using the built-in test bac
 To enable these backends, you must uncomment the `test` line in the file `/etc/sane.d/dll.conf`
 
 To show log output, run with `RUST_LOG=debug cargo run` or similar.
+
+The program may fail to show system dialogs and popups if run from the terminal inside VSCode.
+This can be fixed by running `unset GTK_PATH` before running the program. This only needs to be done once per terminal session.
+Alternatively, you can use an external terminal emulator instead.
