@@ -1,10 +1,10 @@
-# Roboarchive
+# SlickScan
 
 This is an experimental desktop document scanning tool (implemented as a SANE scanner frontend).
 
-The goal is to allow very fast scanning of multiple documents which were placed at-once into a scanner with a feeder system.
+The goal is to allow very fast scanning, organization, and saving of multiple documents which were placed at-once into a scanner with a document feeder.
 
-The interface should allow users to group pages into documents and save and organize them as pages continue to be processed by the scanner.
+The interface allows users to group pages into documents and save them as pages continue to be processed by the scanner.
 
 ## Compatibility
 
@@ -23,7 +23,7 @@ On Ubuntu: `sudo apt install libclang-dev libsane-dev libxcb-render0-dev libxcb-
 
 ## Testing
 
-I'm supporting testing using the built-in test backends that come with SANE.
+The program may be tested without a physical scanner using the built-in test backends that come with SANE.
 To enable these backends, you must uncomment the `test` line in the file `/etc/sane.d/dll.conf`
 
 For debugging, run with `RUST_LOG=debug cargo run` or similar.

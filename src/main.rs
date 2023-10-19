@@ -9,7 +9,7 @@ use tinyfiledialogs::{select_folder_dialog, MessageBoxIcon, message_box_ok, mess
 mod commonvals;
 
 const DEFAULT_FILE_NAME: &str = "scan.pdf";
-const ERR_DIALOG_TITLE: &str = "Roboarchive Error";
+const ERR_DIALOG_TITLE: &str = "SlickScan Error";
 const LETTER_WIDTH_MM: f64 = 215.9;
 const LETTER_HEIGHT_MM: f64 = 279.4;
 const LETTER_WIDTH_IN: f64 = 8.5;
@@ -29,9 +29,9 @@ fn main() {
 
     match sane_instance {
         Ok(sane_instance) => eframe::run_native(
-            "Roboarchive",
+            "SlickScan",
             options,
-            Box::new(|cc| Box::new(RoboarchiveApp::new(cc, sane_instance)))).unwrap(),
+            Box::new(|cc| Box::new(SlickScanApp::new(cc, sane_instance)))).unwrap(),
         Err(error) => message_box_ok(ERR_DIALOG_TITLE, &format!("Error occurred while setting up SANE scanner interface: {error}"), MessageBoxIcon::Error),
     }
 }
@@ -54,7 +54,7 @@ enum ScanStatus {
     Running,
 }
 
-struct RoboarchiveApp {
+struct SlickScanApp {
     // SANE backend objects
     scanner_list: Vec<Device>,
     selected_scanner: usize,
@@ -87,7 +87,7 @@ struct RoboarchiveApp {
     file_save_path: String,
 }
 
-impl RoboarchiveApp {
+impl SlickScanApp {
     fn new(cc: &eframe::CreationContext<'_>, sane_instance: Sane) -> Self {
         Self {
             scanner_list: Vec::default(),
@@ -581,7 +581,7 @@ impl RoboarchiveApp {
     }
 }
 
-impl eframe::App for RoboarchiveApp {
+impl eframe::App for SlickScanApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
 
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
@@ -598,7 +598,7 @@ impl eframe::App for RoboarchiveApp {
             self.show_config_window(ctx);
         }
         if self.dialog_status.common_vals {
-            RoboarchiveApp::show_values_window(ctx);
+            SlickScanApp::show_values_window(ctx);
         }
     }
 }

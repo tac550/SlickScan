@@ -2035,17 +2035,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "456c603be3e8d448b072f410900c09faf164fbce2d480456f50eea6e25f9c848"
 
 [[package]]
-name = "roboarchive"
-version = "0.1.0"
-dependencies = [
- "eframe",
- "env_logger 0.10.0",
- "printpdf",
- "sane-scan",
- "tinyfiledialogs",
-]
-
-[[package]]
 name = "rustc-hash"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2221,6 +2210,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6528351c9bc8ab22353f9d776db39a20288e8d6c37ef8cfe3317cf875eecfc2d"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "slickscan"
+version = "0.1.0"
+dependencies = [
+ "eframe",
+ "env_logger 0.10.0",
+ "printpdf",
+ "sane-scan",
+ "tinyfiledialogs",
 ]
 
 [[package]]
