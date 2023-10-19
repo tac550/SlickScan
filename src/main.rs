@@ -10,10 +10,10 @@ mod commonvals;
 
 const DEFAULT_FILE_NAME: &str = "scan.pdf";
 const ERR_DIALOG_TITLE: &str = "SlickScan Error";
-const LETTER_WIDTH_MM: f64 = 215.9;
-const LETTER_HEIGHT_MM: f64 = 279.4;
-const LETTER_WIDTH_IN: f64 = 8.5;
-const LETTER_HEIGHT_IN: f64 = 11.0;
+const LETTER_WIDTH_MM: f32 = 215.9;
+const LETTER_HEIGHT_MM: f32 = 279.4;
+const LETTER_WIDTH_IN: f32 = 8.5;
+const LETTER_HEIGHT_IN: f32 = 11.0;
 
 fn main() {
     env_logger::init();
@@ -362,9 +362,9 @@ impl SlickScanApp {
                 });
     
                 #[allow(clippy::cast_precision_loss)]
-                let inches_unscaled_x = scanned_image.texture_handle.size()[0] as f64 / 300.0;
+                let inches_unscaled_x = scanned_image.texture_handle.size()[0] as f32 / 300.0;
                 #[allow(clippy::cast_precision_loss)]
-                let inches_unscaled_y = scanned_image.texture_handle.size()[1] as f64 / 300.0;
+                let inches_unscaled_y = scanned_image.texture_handle.size()[1] as f32 / 300.0;
     
                 let scale_factor_x = LETTER_WIDTH_IN / inches_unscaled_x;
                 let scale_factor_y = LETTER_HEIGHT_IN / inches_unscaled_y;
