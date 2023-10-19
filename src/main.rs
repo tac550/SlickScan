@@ -483,7 +483,9 @@ impl SlickScanApp {
                             continue;
                         }
                 
-                        if ui.add(egui::Image::new(&image.texture_handle, scale_image_size(image.texture_handle.size_vec2(), self.image_max_x))
+                        if ui.add(egui::Image::new(&image.texture_handle)
+                            .fit_to_exact_size(scale_image_size(image.texture_handle.size_vec2(), self.image_max_x))
+                            .show_loading_spinner(true)
                             .tint(if let Some(n) = image.selected_as_page {selection_tint_color(n)} else {Color32::WHITE})
                             .sense(Sense::click()))
                                 .on_hover_text_at_pointer(if let Some(page) = image.selected_as_page {format!("Page {}", page+1)} else {format!("Selecting page {}...", self.selecting_page+1)})

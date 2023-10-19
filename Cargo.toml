@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-eframe = "0.22.0"
+eframe = "0.23.0"
 sane-scan = { git = "https://github.com/tac550/sane-scan"}
 env_logger = "0.10.0"
 tinyfiledialogs = "3.9.1"
