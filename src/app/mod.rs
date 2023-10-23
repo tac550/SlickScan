@@ -363,7 +363,7 @@ impl App {
                                 cstring_to_string(&device.model, "device model")),
                             None => String::from("(None)"),
                         })
-                    .on_disabled_hover_text("No scanner available—try clicking refresh")
+                    .on_disabled_hover_text("No scanner available — try clicking refresh")
                     .changed() {
                         self.open_selected_device();
                     };
