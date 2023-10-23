@@ -4,7 +4,7 @@ This is an experimental desktop document scanning tool (implemented as a SANE sc
 
 The goal is to allow very fast scanning, organization, and saving of multiple documents which were placed at-once into a scanner with a document feeder.
 
-The interface allows users to group pages into documents and save them as pages continue to be processed by the scanner.
+The interface allows users to group pages into documents and save them as additional pages continue to be processed by the scanner.
 
 ## Compatibility
 
