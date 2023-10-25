@@ -26,7 +26,7 @@ pub struct App {
     search_network: bool,
     scan_status: ScanStatus,
     image_max_x: f32,
-    selecting_page: usize,
+    pages_selected: usize,
     dialog_status: DialogStatus,
 
     scanned_images: Arc<Mutex<Vec<ScanEntry>>>,
@@ -58,7 +58,7 @@ impl App {
             search_network: Default::default(),
             scan_status: ScanStatus::Stopped,
             image_max_x: 200.0,
-            selecting_page: Default::default(),
+            pages_selected: Default::default(),
             dialog_status: DialogStatus::default(),
             scanned_images: Arc::default(),
             selected_page_indices: Vec::default(),
@@ -261,7 +261,7 @@ impl App {
             self.selected_page_indices.pop();
         }
 
-        self.selecting_page = index;
+        self.pages_selected = index;
     }
 
     fn clear_selection(&mut self) {
@@ -444,16 +444,16 @@ impl App {
                         if ui.add(egui::Image::new(&image.texture_handle)
                             .fit_to_exact_size(scale_image_size(image.texture_handle.size_vec2(), self.image_max_x))
                             .show_loading_spinner(true)
-                            .tint(if let Some(n) = image.selected_as_page {selection_tint_color(n)} else {Color32::WHITE})
+                            .tint(if let Some(n) = image.selected_as_page {selection_tint_color(n, self.pages_selected)} else {Color32::WHITE})
                             .sense(Sense::click()))
-                                .on_hover_text_at_pointer(if let Some(page) = image.selected_as_page {format!("Page {}", page+1)} else {format!("Selecting page {}...", self.selecting_page+1)})
+                                .on_hover_text_at_pointer(if let Some(page) = image.selected_as_page {format!("Page {}", page+1)} else {format!("Selecting page {}...", self.pages_selected+1)})
                                 .clicked() {
                                     if let Some(idx) = image.selected_as_page {
                                         clearing_from_index = Some(idx);
                                     } else {
                                         self.selected_page_indices.push(i);
-                                        image.selected_as_page = Some(self.selecting_page);
-                                        self.selecting_page += 1;    
+                                        image.selected_as_page = Some(self.pages_selected);
+                                        self.pages_selected += 1;    
                                     }
                             
                                     if let Some(resp) = &self.path_field {
