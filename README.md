@@ -19,7 +19,7 @@ Requires that libclang be installed prior to building.
 On Linux, additional packages are required for the `eframe` egui framework.
 Also requires SANE headers.
 
-On Ubuntu: `sudo apt install libclang-dev libsane-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libspeechd-dev libxkbcommon-dev libssl-dev libfontconfig1-dev`
+On Ubuntu: `sudo apt install libclang-dev libsane1 libsane-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libspeechd-dev libxkbcommon-dev libssl-dev libfontconfig1-dev`
 
 ## Testing
 
