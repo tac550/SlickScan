@@ -1,5 +1,4 @@
 use app::App;
-use eframe::epaint::Vec2;
 use sane_scan::{self, Sane};
 use tinyfiledialogs::{MessageBoxIcon, message_box_ok};
 
@@ -18,7 +17,8 @@ fn main() {
     env_logger::init();
 
     let options = eframe::NativeOptions {
-        initial_window_size: Some(Vec2::new(1050.0, 850.0)),
+        viewport: eframe::egui::ViewportBuilder::default()
+            .with_inner_size([1050.0, 850.0]),
         ..Default::default()
     };
 
