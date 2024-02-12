@@ -10,4 +10,4 @@ eframe = "0.25.0"
 sane-scan = { git = "https://github.com/tac550/sane-scan"}
 env_logger = "0.11.0"
 tinyfiledialogs = "3.9.1"
-printpdf = "0.6.0"
+printpdf = "0.7.0"

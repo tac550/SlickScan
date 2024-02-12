@@ -317,6 +317,7 @@ impl App {
                     image_data: scanned_image.pixels.clone(),
                     image_filter: None,
                     clipping_bbox: None,
+                    smask: None,
                 });
     
                 #[allow(clippy::cast_precision_loss)]
