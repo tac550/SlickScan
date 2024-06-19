@@ -281,8 +281,8 @@ impl App {
         }
 
         if let Some(root_path) = &self.root_location {
-            let file_path = if self.file_save_path.trim().is_empty() { DEFAULT_FILE_NAME } else { &self.file_save_path };
-            let saving_path = root_path.join(file_path).with_extension("pdf");
+            let file_path = if self.file_save_path.trim().is_empty() { DEFAULT_FILE_NAME } else { &(self.file_save_path.clone() + ".pdf") };
+            let saving_path = root_path.join(file_path);
 
             if let Some(p) = saving_path.parent() {
                 if !p.exists() {
