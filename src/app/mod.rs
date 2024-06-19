@@ -531,7 +531,7 @@ impl App {
                             for value in category.get_values() {
                                 ui.label(value.name).on_hover_text(value.description);
                                 if ui.button("Copy").clicked() {
-                                    ui.output_mut(|o| o.copied_text = value.value.to_owned());
+                                    ui.output_mut(|o| value.value.clone_into(&mut o.copied_text));
                                 }
                             }
                         });
