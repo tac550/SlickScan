@@ -47,6 +47,11 @@ pub struct App {
 
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>, sane_instance: Sane) -> Self {
+        cc.egui_ctx.style_mut(|style| {
+            style.interaction.show_tooltips_only_when_still = false;
+            style.interaction.tooltip_delay = 0.0;
+        });
+
         Self {
             scanner_list: Vec::default(),
             selected_scanner: Default::default(),
