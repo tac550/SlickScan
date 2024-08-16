@@ -354,7 +354,7 @@ impl App {
     fn draw_top_panel(&mut self, ctx: &Context) {
         egui::TopBottomPanel::top("MainUI-TopPanel").show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
-                if ui.button("↻").on_hover_text_at_pointer("Refresh the device list").clicked() {
+                if ui.button("↻").on_hover_text("Refresh the device list").clicked() {
                     self.refresh_devices();
                 };
 
