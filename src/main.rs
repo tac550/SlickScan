@@ -30,7 +30,7 @@ fn main() {
         Ok(sane_instance) => eframe::run_native(
             "SlickScan",
             options,
-            Box::new(|cc| Box::new(App::new(cc, sane_instance)))).unwrap(),
+            Box::new(|cc| Ok(Box::new(App::new(cc, sane_instance))))).unwrap(),
         Err(error) => message_box_ok(ERR_DIALOG_TITLE, &format!("Error occurred while setting up SANE scanner interface: {error}"), MessageBoxIcon::Error),
     }
 }
