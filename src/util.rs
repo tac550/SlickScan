@@ -1,7 +1,7 @@
 use std::ffi::CString;
 
-pub fn cstring_to_string(cstring: &CString, data_type: &str) -> String {
-    cstring.clone().into_string().unwrap_or(format!("Error reading {data_type}!"))
+pub fn cstring_to_string(cstring: &CString, data_desc: &str) -> String {
+    cstring.clone().into_string().unwrap_or(format!("Error reading {data_desc}!"))
 }
 
 pub fn string_to_cstring(string: String) -> CString {
