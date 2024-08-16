@@ -546,7 +546,12 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
 
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-            self.clear_selection();
+            if self.dialog_status.config {
+                self.dialog_status.common_vals = false;
+                self.dialog_status.config = false;
+            } else {
+                self.clear_selection();
+            }
         }
 
         self.draw_top_panel(ctx);
