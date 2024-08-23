@@ -1,4 +1,4 @@
-use std::{sync::{Arc, Mutex}, thread::{JoinHandle, self}, path::PathBuf, fs::{File, self}, io::BufWriter};
+use std::{fs::{self, File}, io::BufWriter, path::PathBuf, sync::{Arc, Mutex}, thread::{self, JoinHandle}};
 
 use eframe::{egui::{self, Response, Context, Sense, CollapsingHeader}, epaint::{Color32, ColorImage}};
 use printpdf::{PdfDocument, Mm, ImageXObject, Px, ColorSpace, ColorBits, Image, ImageTransform};
@@ -442,31 +442,44 @@ impl App {
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.horizontal_wrapped(|ui| {
-                    for (i, image) in self.scanned_images.lock().unwrap().iter_mut().enumerate() {
-                        if image.saved_to_file && !self.show_saved_images {
-                            continue;
+                    let mut i = 0;
+                    self.scanned_images.lock().unwrap().retain_mut(|image| {
+                        let mut retain = true;
+                        if !image.saved_to_file || self.show_saved_images {
+                            let response = ui.add(egui::Image::new(&image.texture_handle)
+                                .fit_to_exact_size(scale_image_size(image.texture_handle.size_vec2(), self.image_max_x))
+                                .show_loading_spinner(true)
+                                .tint(if let Some(n) = image.selected_as_page {selection_tint_color(n, self.pages_selected)} else {Color32::WHITE})
+                                .sense(Sense::click()))
+                                .on_hover_text_at_pointer(if let Some(page) = image.selected_as_page {format!("Page {}", page+1)} else {format!("Selecting page {}...", self.pages_selected+1)});
+
+                            if response.clicked() {
+                                if let Some(idx) = image.selected_as_page {
+                                    clearing_from_index = Some(idx);
+                                } else {
+                                    self.selected_page_indices.push(i);
+                                    image.selected_as_page = Some(self.pages_selected);
+                                    self.pages_selected += 1;
+                                }
+                        
+                                if let Some(resp) = &self.path_field {
+                                    resp.request_focus();
+                                }
+                            }
+
+                            response.context_menu(|ui| {
+                                ui.add_enabled_ui(self.selected_page_indices.is_empty(), |ui| {
+                                    if ui.button("Delete scan image").on_disabled_hover_text("Cannot delete images while any image is selected").clicked() {
+                                        retain = false;
+                                        ui.close_menu();
+                                    }
+                                });
+                            });
                         }
-                
-                        if ui.add(egui::Image::new(&image.texture_handle)
-                            .fit_to_exact_size(scale_image_size(image.texture_handle.size_vec2(), self.image_max_x))
-                            .show_loading_spinner(true)
-                            .tint(if let Some(n) = image.selected_as_page {selection_tint_color(n, self.pages_selected)} else {Color32::WHITE})
-                            .sense(Sense::click()))
-                                .on_hover_text_at_pointer(if let Some(page) = image.selected_as_page {format!("Page {}", page+1)} else {format!("Selecting page {}...", self.pages_selected+1)})
-                                .clicked() {
-                                    if let Some(idx) = image.selected_as_page {
-                                        clearing_from_index = Some(idx);
-                                    } else {
-                                        self.selected_page_indices.push(i);
-                                        image.selected_as_page = Some(self.pages_selected);
-                                        self.pages_selected += 1;    
-                                    }
-                            
-                                    if let Some(resp) = &self.path_field {
-                                        resp.request_focus();
-                                    }
-                        };
-                    }
+
+                        i += 1;
+                        retain
+                    });
                 });
             });
         });
